@@ -1,0 +1,44 @@
+# ============================================================
+#  DRRO — .gitignore
+# ============================================================
+
+# ----- Java / Maven -----
+target/
+*.class
+*.jar
+*.war
+*.ear
+!pdfbox.jar
+
+# ----- Credentials (NEVER commit these) -----
+**/application-local.properties
+**/application-prod.properties
+**/.env
+*.env
+
+# ----- IDE -----
+.idea/
+*.iml
+.vscode/
+*.code-workspace
+.settings/
+.classpath
+.project
+
+# ----- Node / React -----
+node_modules/
+dist/
+.next/
+build/
+
+# ----- OS -----
+.DS_Store
+Thumbs.db
+
+# ----- Logs -----
+*.log
+logs/
+
+# ----- Test outputs -----
+test-results/
+coverage/
