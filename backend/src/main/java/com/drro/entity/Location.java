@@ -2,6 +2,9 @@ package com.drro.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
@@ -27,23 +30,31 @@ public class Location {
     @Column(nullable = false, precision = 10, scale = 7)
     private BigDecimal longitude;
 
+    @Builder.Default
     @Column(columnDefinition = "INTEGER DEFAULT 0")
     private Integer populationAffected = 0;
 
+    @Builder.Default
     @Column(columnDefinition = "INTEGER DEFAULT 0")
     private Integer vulnerabilityScore = 0;
 
+    @Builder.Default
     @Column(columnDefinition = "INTEGER DEFAULT 0")
     private Integer severityScore = 0;
 
+    @Builder.Default
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(columnDefinition = "accessibility_type")
     private AccessibilityType accessibility = AccessibilityType.ACCESSIBLE;
 
+    @Builder.Default
     @Column(columnDefinition = "INTEGER DEFAULT 0")
     private Integer openRequestCount = 0;
 
+    @Builder.Default
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(columnDefinition = "fulfillment_status")
     private FulfillmentStatus fulfillmentStatus = FulfillmentStatus.PENDING;
 

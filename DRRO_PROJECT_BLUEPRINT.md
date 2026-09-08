@@ -64,7 +64,7 @@ The central feature is an **Explainable Allocation Engine** that:
 | FR-10 | System tracks dispatch and delivery status |
 | FR-11 | System updates inventory automatically after allocation/delivery |
 | FR-12 | System records partial fulfillment and unmet demand |
-| FR-13 | System provides dashboards and reports |
+| FR-13 | Dashboard shows live KPI metrics, charts, and supports one-click PDF export |
 | FR-14 | System maintains full audit logs for all important actions |
 
 ---
@@ -568,7 +568,8 @@ com.drro
 │   ├── AllocationService.java
 │   ├── TeamService.java
 │   ├── DispatchService.java
-│   └── ReportService.java
+│   ├── DashboardService.java        (KPI metrics + chart data)
+│   └── DashboardPdfExportService.java  (PDF export of dashboard)
 ├── allocation/
 │   ├── AllocationEngine.java        (interface)
 │   ├── GreedyAllocator.java         (primary implementation)
@@ -590,12 +591,9 @@ com.drro
 │   └── InsufficientInventoryException.java
 ├── mapper/
 │   └── (MapStruct mappers per entity)
-├── util/
-│   ├── HaversineUtil.java
-│   └── DateUtil.java
-└── report/
-    ├── MetricsCalculator.java
-    └── PdfReportGenerator.java
+└── util/
+    ├── HaversineUtil.java
+    └── DateUtil.java
 ```
 
 ---
@@ -628,7 +626,6 @@ frontend/
 │   │   │   └── ApprovalPage.jsx
 │   │   ├── Teams/
 │   │   ├── Dispatch/
-│   │   ├── Reports/
 │   │   └── Admin/
 │   │       ├── UserManagement.jsx
 │   │       └── WeightConfig.jsx
@@ -655,7 +652,7 @@ frontend/
 │   │   ├── inventoryService.js
 │   │   ├── requestService.js
 │   │   ├── allocationService.js
-│   │   └── reportService.js
+│   │   └── dashboardService.js   (KPI data + PDF export trigger)
 │   ├── hooks/
 │   │   ├── useAuth.js
 │   │   └── useAllocation.js
@@ -882,12 +879,24 @@ CREATED → IN_TRANSIT → DELIVERED
 
 ---
 
-### Module 10: Dashboard & Reporting
+### Module 10: Dashboard (with Built-in PDF Export)
 
 **Functionality:**
-- Real-time operational overview for officers and managers
-- Algorithm evaluation and baseline comparison reports
-- Export to PDF (using pdfbox.jar)
+- Real-time operational overview for all roles
+- Live KPI cards: Active Disasters, Open Requests, Pending Approvals, Low Stock Alerts, Active Dispatches, Fulfilled Today
+- 6 charts: Resource Utilization, Request Priority Breakdown, Fulfillment Rate Over Time, Unmet Demand by Location, Allocation Status, Top High-Priority Requests
+- Baseline algorithm comparison metrics displayed as a table on the dashboard
+- **"Export Dashboard as PDF"** button — generates a PDF snapshot of all KPI cards + charts in one click
+- PDF generated server-side using Apache PDFBox (no separate Reports page needed)
+- PDF filename: `DRRO_Dashboard_<date>.pdf`
+
+> ℹ️ **Design Decision:** The separate `/reports` page has been removed. All metrics, evaluation data, and export functionality are consolidated into the Dashboard for a cleaner, unified experience.
+
+**Business Rules:**
+- All roles can view the dashboard
+- Only OFFICER and ADMIN can trigger PDF export
+- PDF export captures the current state of all metrics at time of export
+- Baseline algorithm comparison is shown as an embedded table on the dashboard (not a separate page)
 
 ---
 
@@ -1000,14 +1009,18 @@ Subject to:
 | GET | `/api/dispatch` | ALL | List dispatches |
 | PATCH | `/api/dispatch/{id}/deliver` | FIELD_OPERATOR | Record delivery |
 
-### Reports
+### Dashboard
 | Method | Endpoint | Role | Description |
 |--------|----------|------|-------------|
-| GET | `/api/reports/metrics` | ALL | Operational metrics |
-| GET | `/api/reports/baseline-comparison` | ALL | Algorithm comparison |
-| GET | `/api/reports/unmet-demand` | ALL | Unmet demand report |
-| GET | `/api/reports/utilization` | ALL | Resource utilization |
-| GET | `/api/reports/export/pdf` | OFFICER | Export PDF report |
+| GET | `/api/dashboard/kpis` | ALL | All KPI card values |
+| GET | `/api/dashboard/charts/resource-utilization` | ALL | Donut chart data |
+| GET | `/api/dashboard/charts/request-priority` | ALL | Priority bar chart data |
+| GET | `/api/dashboard/charts/fulfillment-rate` | ALL | Fulfillment trend (30 days) |
+| GET | `/api/dashboard/charts/unmet-demand` | ALL | Unmet demand by location |
+| GET | `/api/dashboard/charts/allocation-status` | ALL | Allocation stacked bar data |
+| GET | `/api/dashboard/top-requests` | ALL | Top 10 high-priority requests |
+| GET | `/api/dashboard/baseline-comparison` | ALL | Algorithm comparison table |
+| GET | `/api/dashboard/export/pdf` | OFFICER | Export full dashboard as PDF |
 
 ---
 
@@ -1061,6 +1074,17 @@ Subject to:
 | Unmet Demand by Location | Horizontal Bar | Unmet qty per location |
 | Allocation Status | Stacked Bar | Recommended / Approved / Delivered |
 | Top High-Priority Requests | Table | Top 10 by score |
+| Baseline Algorithm Comparison | Table | FCFS vs Severity-Only vs Nearest vs DRRO |
+
+### Export PDF Button
+| Feature | Detail |
+|---------|--------|
+| Location | Top-right corner of Dashboard page |
+| Access | OFFICER and ADMIN only |
+| API Call | `GET /api/dashboard/export/pdf` |
+| Contents | KPI Cards + all 6 charts + baseline comparison table |
+| Format | A4 PDF, generated server-side with Apache PDFBox |
+| Filename | `DRRO_Dashboard_YYYY-MM-DD.pdf` |
 
 ---
 
@@ -1087,10 +1111,8 @@ Subject to:
 | 17 | Team List | `/teams` | ALL |
 | 18 | Dispatch Tracking | `/dispatch` | ALL |
 | 19 | Delivery Update | `/dispatch/:id/deliver` | FIELD_OPERATOR |
-| 20 | Reports | `/reports` | ALL |
-| 21 | Algorithm Comparison | `/reports/comparison` | ALL |
-| 22 | User Management | `/admin/users` | ADMIN |
-| 23 | Weight Configuration | `/admin/weights` | ADMIN |
+| 20 | User Management | `/admin/users` | ADMIN |
+| 21 | Weight Configuration | `/admin/weights` | ADMIN |
 
 ---
 
@@ -1110,7 +1132,7 @@ Subject to:
 | Create Dispatch | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
 | Record Delivery | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
 | View Dashboard | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| View Reports | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
+| Export Dashboard PDF | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Config Weights | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 
 ---
@@ -1242,7 +1264,7 @@ The Minimum Viable Product must include:
 14. **Implement AllocationEngine** (PriorityScoreCalculator → GreedyAllocator → ExplanationGenerator)
 15. Implement Approval workflow with inventory reservation
 16. Implement Team management and Dispatch + Delivery tracking
-17. Implement Reports and Metrics API
+17. Implement Dashboard API (`/api/dashboard/*`) with KPI metrics, chart data, baseline comparison, and PDF export
 18. Build React frontend (login page → dashboard → each module page)
 19. Integrate frontend with backend APIs
 20. Add baseline algorithm comparison endpoints

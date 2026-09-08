@@ -2,6 +2,9 @@ package com.drro.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.math.BigDecimal;
 
 @Entity
@@ -24,6 +27,7 @@ public class RequestItem {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal requiredQty;
 
+    @Builder.Default
     @Column(precision = 12, scale = 2, columnDefinition = "NUMERIC(12,2) DEFAULT 0")
     private BigDecimal fulfilledQty = BigDecimal.ZERO;
 
@@ -34,7 +38,9 @@ public class RequestItem {
     @Column(precision = 5, scale = 2)
     private BigDecimal priorityScore;
 
+    @Builder.Default
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(columnDefinition = "item_status")
     private ItemStatus status = ItemStatus.OPEN;
 

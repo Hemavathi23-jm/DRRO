@@ -2,6 +2,9 @@ package com.drro.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.time.OffsetDateTime;
 
 @Entity
@@ -22,12 +25,15 @@ public class ReliefRequest {
     private Location location;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(nullable = false, columnDefinition = "urgency_level")
     private UrgencyLevel urgency;
 
     private OffsetDateTime deadline;
 
+    @Builder.Default
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(columnDefinition = "request_status")
     private RequestStatus status = RequestStatus.PENDING;
 

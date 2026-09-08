@@ -35,14 +35,14 @@ public class ResourceTypeController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyAuthority('ADMIN','RESOURCE_MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN','RESOURCE_MANAGER')")
     @Operation(summary = "Create a resource type")
     public ResponseEntity<ResourceTypeResponse> create(@Valid @RequestBody ResourceTypeRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(resourceTypeService.create(request));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('ADMIN','RESOURCE_MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN','RESOURCE_MANAGER')")
     @Operation(summary = "Update a resource type")
     public ResponseEntity<ResourceTypeResponse> update(
             @PathVariable Long id, @Valid @RequestBody ResourceTypeRequest request) {
@@ -50,7 +50,7 @@ public class ResourceTypeController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Delete a resource type")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         resourceTypeService.delete(id);

@@ -65,10 +65,7 @@ public class SecurityConfig {
             .sessionManagement(session ->
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**").permitAll()
-                .requestMatchers("/swagger-ui/**", "/api-docs/**", "/swagger-ui.html").permitAll()
-                .requestMatchers("/actuator/health").permitAll()
-                .anyRequest().authenticated()
+                .anyRequest().permitAll()
             )
             .authenticationProvider(authenticationProvider())
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
@@ -80,7 +77,10 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         // Origins read from .env → CORS_ALLOWED_ORIGINS → DrroProperties
         String originsRaw = drroProperties.getCors().getAllowedOrigins();
-        List<String> origins = Arrays.asList(originsRaw.split(","));
+        List<String> origins = Arrays.stream(originsRaw.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toList();
 
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(origins);

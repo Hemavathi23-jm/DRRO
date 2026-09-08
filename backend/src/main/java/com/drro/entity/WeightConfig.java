@@ -17,24 +17,31 @@ public class WeightConfig {
     @Column(nullable = false, length = 100)
     private String configName;
 
+    @Builder.Default
     @Column(precision = 4, scale = 2, columnDefinition = "NUMERIC(4,2) DEFAULT 0.25")
     private BigDecimal weightSeverity = new BigDecimal("0.25");
 
+    @Builder.Default
     @Column(precision = 4, scale = 2, columnDefinition = "NUMERIC(4,2) DEFAULT 0.20")
     private BigDecimal weightPopulation = new BigDecimal("0.20");
 
+    @Builder.Default
     @Column(precision = 4, scale = 2, columnDefinition = "NUMERIC(4,2) DEFAULT 0.20")
     private BigDecimal weightUrgency = new BigDecimal("0.20");
 
+    @Builder.Default
     @Column(precision = 4, scale = 2, columnDefinition = "NUMERIC(4,2) DEFAULT 0.20")
     private BigDecimal weightShortage = new BigDecimal("0.20");
 
+    @Builder.Default
     @Column(precision = 4, scale = 2, columnDefinition = "NUMERIC(4,2) DEFAULT 0.10")
     private BigDecimal weightTravel = new BigDecimal("0.10");
 
+    @Builder.Default
     @Column(precision = 4, scale = 2, columnDefinition = "NUMERIC(4,2) DEFAULT 0.05")
     private BigDecimal weightVulnerability = new BigDecimal("0.05");
 
+    @Builder.Default
     @Column(columnDefinition = "BOOLEAN DEFAULT FALSE")
     private Boolean isActive = false;
 

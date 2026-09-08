@@ -14,4 +14,6 @@ public interface AllocationRepository extends JpaRepository<Allocation, Long> {
     List<Allocation> findByRequestItem_RequestItemId(Long requestItemId);
 
     List<Allocation> findByCenter_CenterId(Long centerId);
+
+    List<Allocation> findByRequestItem_Request_RequestId(Long requestId);
 }

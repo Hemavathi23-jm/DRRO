@@ -2,6 +2,9 @@ package com.drro.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
@@ -26,7 +29,9 @@ public class ResponseTeam {
     @Column(precision = 10, scale = 7)
     private BigDecimal longitude;
 
+    @Builder.Default
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(columnDefinition = "team_availability")
     private TeamAvailability availability = TeamAvailability.AVAILABLE;
 

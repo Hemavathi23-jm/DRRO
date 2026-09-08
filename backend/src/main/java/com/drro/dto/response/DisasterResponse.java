@@ -19,6 +19,8 @@ public class DisasterResponse {
     private BigDecimal longitude;
     private String description;
     private String status;
+    private String externalSource;
+    private String sourceUrl;
     private Long createdById;
     private String createdByName;
     private OffsetDateTime createdAt;

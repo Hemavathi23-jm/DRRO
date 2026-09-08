@@ -2,6 +2,9 @@ package com.drro.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
@@ -29,10 +32,13 @@ public class Dispatch {
     private OffsetDateTime estimatedArrival;
     private OffsetDateTime actualArrival;
 
+    @Builder.Default
     @Column(precision = 12, scale = 2, columnDefinition = "NUMERIC(12,2) DEFAULT 0")
     private BigDecimal deliveredQty = BigDecimal.ZERO;
 
+    @Builder.Default
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(columnDefinition = "dispatch_status")
     private DispatchStatus status = DispatchStatus.CREATED;
 

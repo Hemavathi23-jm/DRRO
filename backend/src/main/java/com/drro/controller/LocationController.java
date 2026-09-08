@@ -23,10 +23,10 @@ public class LocationController {
     private final LocationService locationService;
 
     @GetMapping
-    @Operation(summary = "Get all locations for a disaster")
-    public ResponseEntity<List<LocationResponse>> getByDisaster(
-            @RequestParam Long disasterId) {
-        return ResponseEntity.ok(locationService.getByDisaster(disasterId));
+    @Operation(summary = "Get all locations or filter by disaster")
+    public ResponseEntity<List<LocationResponse>> getLocations(
+            @RequestParam(required = false) Long disasterId) {
+        return ResponseEntity.ok(locationService.getLocations(disasterId));
     }
 
     @GetMapping("/{id}")
@@ -36,7 +36,7 @@ public class LocationController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyAuthority('ADMIN','OFFICER')")
+    @PreAuthorize("hasAnyRole('ADMIN','OFFICER')")
     @Operation(summary = "Add a new affected location to a disaster")
     public ResponseEntity<LocationResponse> create(
             @Valid @RequestBody LocationRequest request) {
@@ -45,7 +45,7 @@ public class LocationController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('ADMIN','OFFICER')")
+    @PreAuthorize("hasAnyRole('ADMIN','OFFICER')")
     @Operation(summary = "Update an affected location")
     public ResponseEntity<LocationResponse> update(
             @PathVariable Long id,
@@ -54,7 +54,7 @@ public class LocationController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Delete a location")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         locationService.delete(id);

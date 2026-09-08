@@ -39,7 +39,7 @@ public class DisasterController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyAuthority('ADMIN','OFFICER')")
+    @PreAuthorize("hasAnyRole('ADMIN','OFFICER')")
     @Operation(summary = "Create a new disaster")
     public ResponseEntity<DisasterResponse> create(
             @Valid @RequestBody DisasterRequest request,
@@ -49,7 +49,7 @@ public class DisasterController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('ADMIN','OFFICER')")
+    @PreAuthorize("hasAnyRole('ADMIN','OFFICER')")
     @Operation(summary = "Update a disaster")
     public ResponseEntity<DisasterResponse> update(
             @PathVariable Long id,
@@ -58,7 +58,7 @@ public class DisasterController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Delete a disaster")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         disasterService.delete(id);

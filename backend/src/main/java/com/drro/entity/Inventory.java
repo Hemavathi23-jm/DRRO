@@ -28,18 +28,23 @@ public class Inventory {
     @JoinColumn(name = "resource_type_id", nullable = false)
     private ResourceType resourceType;
 
+    @Builder.Default
     @Column(precision = 12, scale = 2, columnDefinition = "NUMERIC(12,2) DEFAULT 0")
     private BigDecimal availableQty = BigDecimal.ZERO;
 
+    @Builder.Default
     @Column(precision = 12, scale = 2, columnDefinition = "NUMERIC(12,2) DEFAULT 0")
     private BigDecimal reservedQty = BigDecimal.ZERO;
 
+    @Builder.Default
     @Column(precision = 12, scale = 2, columnDefinition = "NUMERIC(12,2) DEFAULT 0")
     private BigDecimal dispatchedQty = BigDecimal.ZERO;
 
+    @Builder.Default
     @Column(precision = 12, scale = 2, columnDefinition = "NUMERIC(12,2) DEFAULT 0")
     private BigDecimal deliveredQty = BigDecimal.ZERO;
 
+    @Builder.Default
     @Column(precision = 12, scale = 2, columnDefinition = "NUMERIC(12,2) DEFAULT 0")
     private BigDecimal minStockLevel = BigDecimal.ZERO;
 

@@ -16,16 +16,26 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class LocationService {
 
     private final LocationRepository locationRepository;
     private final DisasterRepository disasterRepository;
 
+    /** Get all locations or filter by specific disaster */
+    public List<LocationResponse> getLocations(Long disasterId) {
+        if (disasterId != null) {
+            findDisasterOrThrow(disasterId);
+            return locationRepository.findByDisaster_DisasterId(disasterId)
+                    .stream().map(this::toResponse).collect(Collectors.toList());
+        }
+        return locationRepository.findAllWithDisaster()
+                .stream().map(this::toResponse).collect(Collectors.toList());
+    }
+
     /** Get all locations for a specific disaster */
     public List<LocationResponse> getByDisaster(Long disasterId) {
-        findDisasterOrThrow(disasterId);
-        return locationRepository.findByDisaster_DisasterId(disasterId)
-                .stream().map(this::toResponse).collect(Collectors.toList());
+        return getLocations(disasterId);
     }
 
     /** Get single location by ID */

@@ -22,7 +22,7 @@
     <properties>
         <java.version>17</java.version>
         <mapstruct.version>1.5.5.Final</mapstruct.version>
-        <lombok.version>1.18.32</lombok.version>
+        <lombok.version>1.18.46</lombok.version>
         <jjwt.version>0.12.5</jjwt.version>
     </properties>
 
@@ -97,6 +97,19 @@
             <version>2.5.0</version>
         </dependency>
 
+        <!-- ===== Web scraping (Jsoup) ===== -->
+        <dependency>
+            <groupId>org.jsoup</groupId>
+            <artifactId>jsoup</artifactId>
+            <version>1.18.1</version>
+        </dependency>
+
+        <!-- ===== PDF Report Export ===== -->
+        <dependency>
+            <groupId>com.github.librepdf</groupId>
+            <artifactId>openpdf</artifactId>
+            <version>1.3.39</version>
+        </dependency>
         <!-- ===== .env file support ===== -->
         <dependency>
             <groupId>me.paulschwarz</groupId>

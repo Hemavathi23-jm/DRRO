@@ -17,5 +17,11 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
     Optional<Inventory> findByCenter_CenterIdAndResourceType_ResourceTypeId(Long centerId, Long resourceTypeId);
 
     @Query("SELECT i FROM Inventory i WHERE i.resourceType.resourceTypeId = :typeId AND i.availableQty > 0")
-    List<Inventory> findAvailableByResourceType(@Param("typeId") Long resourceTypeId);
+    List<Inventory> findAvailableByResourceType(@Param("typeId") Long typeId);
+
+    @Query("SELECT i FROM Inventory i JOIN FETCH i.center LEFT JOIN FETCH i.resourceType")
+    List<Inventory> findAllWithCenterAndType();
+
+    @Query("SELECT i FROM Inventory i JOIN FETCH i.center JOIN FETCH i.resourceType WHERE i.center.centerId = :centerId")
+    List<Inventory> findByCenterIdWithResourceType(@Param("centerId") Long centerId);
 }

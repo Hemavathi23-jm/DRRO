@@ -72,8 +72,7 @@ public class GreedyAllocator implements AllocationEngine {
 
         // ---- Step 4, 5, 6, 7: Greedy allocation per item --------------------------
         for (RequestItem item : allItems) {
-            BigDecimal remaining = item.getRequiredQty()
-                    .subtract(item.getFulfilledQty() != null ? item.getFulfilledQty() : BigDecimal.ZERO);
+            BigDecimal remaining = unmetQty(item);
 
             if (remaining.compareTo(BigDecimal.ZERO) <= 0) continue;
 
@@ -146,15 +145,7 @@ public class GreedyAllocator implements AllocationEngine {
                         inv.getCenter().getName(), item.getRequestItemId(), score.finalScore());
             }
 
-            // Update item fulfilled qty and status
-            BigDecimal fulfilled = item.getRequiredQty().subtract(remaining);
-            item.setFulfilledQty(fulfilled);
-            if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
-                item.setStatus(RequestItem.ItemStatus.FULFILLED);
-            } else if (fulfilled.compareTo(BigDecimal.ZERO) > 0) {
-                item.setStatus(RequestItem.ItemStatus.PARTIAL);
-            }
-            requestItemRepository.save(item);
+            // fulfilledQty is updated only on actual delivery (DispatchService)
         }
 
         log.info("[GreedyAllocator] Completed. Created {} allocation records.", totalAllocations);
@@ -167,6 +158,19 @@ public class GreedyAllocator implements AllocationEngine {
      * Quick urgency-based estimate for initial sorting before full scoring.
      * Full scoring happens per (item, center) pair during allocation.
      */
+    /** Remaining demand = required − delivered − pending (non-rejected, non-delivered) allocations. */
+    private BigDecimal unmetQty(RequestItem item) {
+        BigDecimal delivered = item.getFulfilledQty() != null ? item.getFulfilledQty() : BigDecimal.ZERO;
+        BigDecimal pendingAllocated = allocationRepository
+                .findByRequestItem_RequestItemId(item.getRequestItemId())
+                .stream()
+                .filter(a -> a.getStatus() != Allocation.AllocationStatus.REJECTED
+                        && a.getStatus() != Allocation.AllocationStatus.DELIVERED)
+                .map(Allocation::getAllocatedQty)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return item.getRequiredQty().subtract(delivered).subtract(pendingAllocated).max(BigDecimal.ZERO);
+    }
+
     private double quickPriorityEstimate(RequestItem item) {
         double urgency = switch (item.getRequest().getUrgency()) {
             case CRITICAL -> 100.0;

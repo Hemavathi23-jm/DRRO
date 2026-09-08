@@ -2,6 +2,9 @@ package com.drro.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
@@ -18,6 +21,7 @@ public class Disaster {
     private String title;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(nullable = false, columnDefinition = "disaster_type")
     private DisasterType type;
 
@@ -36,13 +40,25 @@ public class Disaster {
     @Column(columnDefinition = "TEXT")
     private String description;
 
+    @Builder.Default
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(columnDefinition = "disaster_status")
     private DisasterStatus status = DisasterStatus.ACTIVE;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")
     private User createdBy;
+
+    /** External web-scrape source identifier (e.g. GDACS, USGS). Null for manually created records. */
+    @Column(length = 50)
+    private String externalSource;
+
+    @Column(length = 120)
+    private String externalId;
+
+    @Column(length = 500)
+    private String sourceUrl;
 
     @Column(updatable = false)
     private OffsetDateTime createdAt;

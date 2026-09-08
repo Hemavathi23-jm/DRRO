@@ -38,14 +38,14 @@ public class ResourceCenterController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyAuthority('ADMIN','RESOURCE_MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN','RESOURCE_MANAGER')")
     @Operation(summary = "Create a resource center")
     public ResponseEntity<ResourceCenterResponse> create(@Valid @RequestBody ResourceCenterRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(resourceCenterService.create(request));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('ADMIN','RESOURCE_MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN','RESOURCE_MANAGER')")
     @Operation(summary = "Update a resource center")
     public ResponseEntity<ResourceCenterResponse> update(
             @PathVariable Long id, @Valid @RequestBody ResourceCenterRequest request) {
@@ -53,7 +53,7 @@ public class ResourceCenterController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Delete a resource center")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         resourceCenterService.delete(id);

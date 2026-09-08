@@ -5,7 +5,9 @@ import com.drro.dto.response.DisasterResponse;
 import com.drro.entity.Disaster;
 import com.drro.entity.User;
 import com.drro.exception.ResourceNotFoundException;
+import com.drro.entity.Location;
 import com.drro.repository.DisasterRepository;
+import com.drro.repository.LocationRepository;
 import com.drro.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -16,10 +18,13 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class DisasterService {
 
     private final DisasterRepository disasterRepository;
+    private final LocationRepository locationRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     public List<DisasterResponse> getAll() {
         return disasterRepository.findAllOrderByCreatedAtDesc()
@@ -56,7 +61,17 @@ public class DisasterService {
                 .createdBy(creator)
                 .build();
 
-        return toResponse(disasterRepository.save(disaster));
+        Disaster saved = disasterRepository.save(disaster);
+
+        notificationService.notifyOfficers(
+                com.drro.entity.Notification.NotificationType.DISASTER_CREATED,
+                com.drro.entity.Notification.NotificationSeverity.CRITICAL,
+                "New Disaster Reported",
+                "New disaster reported: " + saved.getTitle(),
+                "Disaster", saved.getDisasterId(),
+                "/disasters/" + saved.getDisasterId());
+
+        return toResponse(saved);
     }
 
     @Transactional
@@ -77,14 +92,18 @@ public class DisasterService {
 
     @Transactional
     public void delete(Long id) {
-        findOrThrow(id);
-        disasterRepository.deleteById(id);
+        Disaster d = findOrThrow(id);
+        List<Location> locations = locationRepository.findByDisaster_DisasterId(id);
+        if (locations != null && !locations.isEmpty()) {
+            locationRepository.deleteAll(locations);
+        }
+        disasterRepository.delete(d);
     }
 
     // ---- helpers ---------------------------------------------------------------
 
     private Disaster findOrThrow(Long id) {
-        return disasterRepository.findById(id)
+        return disasterRepository.findByIdWithUser(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Disaster not found: " + id));
     }
 
@@ -100,6 +119,8 @@ public class DisasterService {
                 .longitude(d.getLongitude())
                 .description(d.getDescription())
                 .status(d.getStatus().name())
+                .externalSource(d.getExternalSource())
+                .sourceUrl(d.getSourceUrl())
                 .createdById(d.getCreatedBy() != null ? d.getCreatedBy().getUserId() : null)
                 .createdByName(d.getCreatedBy() != null ? d.getCreatedBy().getName() : null)
                 .createdAt(d.getCreatedAt())

@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class ReliefRequestService {
 
     private final ReliefRequestRepository requestRepository;
@@ -23,7 +24,17 @@ public class ReliefRequestService {
     private final LocationRepository locationRepository;
     private final ResourceTypeRepository resourceTypeRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
+    /** All requests in newest-first order. */
+    public List<ReliefRequestResponse> getAll() {
+        return requestRepository.findAll().stream().map(this::toResponse).collect(Collectors.toList());
+    }
+
+    /** Verified requests ready for allocation. */
+    public List<ReliefRequestResponse> getOpen() {
+        return getByStatus(ReliefRequest.RequestStatus.VERIFIED.name());
+    }
     /** All requests for a disaster */
     public List<ReliefRequestResponse> getByDisaster(Long disasterId) {
         return requestRepository.findByDisaster_DisasterIdOrderByCreatedAtDesc(disasterId)
@@ -83,6 +94,16 @@ public class ReliefRequestService {
         location.setOpenRequestCount(location.getOpenRequestCount() + 1);
         locationRepository.save(location);
 
+        if (saved.getUrgency() == ReliefRequest.UrgencyLevel.CRITICAL) {
+            notificationService.notifyOfficers(
+                    com.drro.entity.Notification.NotificationType.CRITICAL_REQUEST,
+                    com.drro.entity.Notification.NotificationSeverity.CRITICAL,
+                    "CRITICAL RELIEF REQUEST",
+                    "Critical request from " + location.getName() + " — review immediately.",
+                    "ReliefRequest", saved.getRequestId(),
+                    "/requests/" + saved.getRequestId());
+        }
+
         return toResponse(requestRepository.findById(saved.getRequestId()).orElse(saved));
     }
 
@@ -97,6 +118,19 @@ public class ReliefRequestService {
         return toResponse(requestRepository.save(request));
     }
 
+    /** Mark a request as escalated without losing its auditability. */
+    @Transactional
+    public ReliefRequestResponse escalate(Long id, String officerEmail) {
+        ReliefRequest request = findOrThrow(id);
+        userRepository.findByEmail(officerEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + officerEmail));
+        if (request.getStatus() == ReliefRequest.RequestStatus.FULFILLED
+                || request.getStatus() == ReliefRequest.RequestStatus.CLOSED) {
+            throw new IllegalStateException("Only active requests can be escalated.");
+        }
+        request.setStatus(ReliefRequest.RequestStatus.ESCALATED);
+        return toResponse(requestRepository.save(request));
+    }
     /** Update urgency / deadline / notes */
     @Transactional
     public ReliefRequestResponse update(Long id, ReliefRequestRequest req) {

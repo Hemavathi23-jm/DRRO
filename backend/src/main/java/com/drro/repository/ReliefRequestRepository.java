@@ -12,6 +12,7 @@ public interface ReliefRequestRepository extends JpaRepository<ReliefRequest, Lo
     List<ReliefRequest> findByDisaster_DisasterIdOrderByCreatedAtDesc(Long disasterId);
 
     List<ReliefRequest> findByStatus(ReliefRequest.RequestStatus status);
+    List<ReliefRequest> findByStatusIn(List<ReliefRequest.RequestStatus> statuses);
 
     List<ReliefRequest> findByLocation_LocationId(Long locationId);
 }
