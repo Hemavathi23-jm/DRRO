@@ -92,6 +92,7 @@ export const allocationApi = {
     api.post('/allocations/run', { strategy: strategy || 'GREEDY_PRIORITY', disasterId }).then(r => r.data),
   decide: (id, data) => api.put(`/allocations/${id}/decide`, data).then(r => r.data),
   approve: (id, notes) => api.post(`/allocations/${id}/approve`, notes ? { notes } : {}).then(r => r.data),
+  bulkApprove: (ids) => api.post('/allocations/bulk-approve', ids).then(r => r.data),
   reject: (id, notes) => api.post(`/allocations/${id}/reject`, notes ? { notes } : {}).then(r => r.data),
   strategies: () => api.get('/allocations/strategies').then(r => r.data),
 };
@@ -141,3 +142,9 @@ export const reportApi = {
   utilization: () => api.get('/reports/utilization').then(r => r.data),
   baselineComparison: () => api.get('/reports/baseline-comparison').then(r => r.data),
 };
+
+// Audit Logs
+export const auditLogApi = {
+  list: (params) => api.get('/admin/audit-logs', { params }).then(r => r.data),
+};
+

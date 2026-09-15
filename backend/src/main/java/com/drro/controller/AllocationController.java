@@ -55,6 +55,10 @@ public class AllocationController {
     public ResponseEntity<AllocationResponse> approve(@PathVariable Long id, @RequestBody(required = false) Map<String, String> body, Authentication auth) {
         return ResponseEntity.ok(allocationService.decide(id, decision("APPROVED", null, body), getEmail(auth)));
     }
+    @PostMapping("/bulk-approve")
+    public ResponseEntity<List<AllocationResponse>> bulkApprove(@RequestBody List<Long> ids, Authentication auth) {
+        return ResponseEntity.ok(allocationService.decideGroup(ids, decision("APPROVED", null, null), getEmail(auth)));
+    }
     @PostMapping("/{id}/reject")
     public ResponseEntity<AllocationResponse> reject(@PathVariable Long id, @RequestBody(required = false) Map<String, String> body, Authentication auth) {
         return ResponseEntity.ok(allocationService.decide(id, decision("REJECTED", null, body), getEmail(auth)));

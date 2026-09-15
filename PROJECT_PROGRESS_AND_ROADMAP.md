@@ -116,17 +116,17 @@ gantt
 
 ### Detailed Remaining Task Breakdown:
 
-#### 🔔 1. WebSocket / Server-Sent Events (SSE) Live Notifications
-- [ ] Push instant push notifications to the top-bar bell when a high-severity disaster is ingested from GDACS/USGS or an urgent request is submitted.
-- [ ] Auto-refresh dashboard charts and unmet demand tables upon new allocation decisions without manual browser refresh.
+#### 🔔 1. WebSocket / Server-Sent Events (SSE) Live Notifications (Completed)
+- [x] Push instant push notifications to the top-bar bell when a high-severity disaster is ingested from GDACS/USGS or an urgent request is submitted.
+- [x] Auto-refresh dashboard charts and unmet demand tables upon new allocation decisions without manual browser refresh.
 
-#### 📦 2. Multi-Warehouse Split-Allocation Engine
-- [ ] Support split-order allocations when a single disaster's demand exceeds the capacity of the closest warehouse (e.g., 60% from Warehouse A, 40% from Warehouse B).
-- [ ] Group multi-center dispatches under a unified relief request tracking manifest.
+#### 📦 2. Multi-Warehouse Split-Allocation Engine (Completed)
+- [x] Support split-order allocations when a single disaster's demand exceeds the capacity of the closest warehouse (e.g., 60% from Warehouse A, 40% from Warehouse B).
+- [x] Group multi-center dispatches under a unified relief request tracking manifest with 1-click group approval.
 
-#### 🔒 3. Security, RBAC & Audit Trails
-- [ ] Implement backend and frontend permission hardening per role (`ADMIN`, `COMMANDER`, `LOGISTICS_OFFICER`, `FIELD_RESPONDER`).
-- [ ] Build an Audit Log Viewer screen in Admin settings to track who approved, rejected, or modified allocations with timestamps.
+#### 🔒 3. Security, RBAC & Audit Trails (Completed)
+- [x] Implement backend and frontend permission hardening per role (`ADMIN`, `COMMANDER`, `LOGISTICS_OFFICER`, `FIELD_RESPONDER`).
+- [x] Build an Audit Log Viewer screen in Admin settings to track who approved, rejected, or modified allocations with timestamps.
 
 #### 🚀 4. Production Hardening & Packaging
 - [ ] Expand integration test suite for greedy optimization edge cases and inventory concurrency.

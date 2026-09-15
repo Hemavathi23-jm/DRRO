@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageWrapper from '../../components/layout/PageWrapper';
 import OperationalMap, { MAP_COLORS } from '../../components/map/OperationalMap';
@@ -46,9 +47,22 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { hasRole } = useAuth();
   const { data, loading, error, refetch } = useAsyncData(() => dashboardApi.get(), []);
-  const { data: mapData } = useAsyncData(() => dashboardApi.map(), []);
-  const { data: disasters } = useAsyncData(() => disasterApi.list(), []);
-  const { data: allocations } = useAsyncData(() => allocationApi.list(), []);
+  const { data: mapData, refetch: refetchMap } = useAsyncData(() => dashboardApi.map(), []);
+  const { data: disasters, refetch: refetchDisasters } = useAsyncData(() => disasterApi.list(), []);
+  const { data: allocations, refetch: refetchAllocations } = useAsyncData(() => allocationApi.list(), []);
+
+  // Listen to live SSE events from backend and auto-refresh dashboard data
+  useEffect(() => {
+    const handleLiveEvent = (e) => {
+      console.log('[Dashboard] Auto-refreshing due to live event:', e.detail);
+      refetch();
+      refetchMap();
+      refetchDisasters();
+      refetchAllocations();
+    };
+    window.addEventListener('drro-live-event', handleLiveEvent);
+    return () => window.removeEventListener('drro-live-event', handleLiveEvent);
+  }, [refetch, refetchMap, refetchDisasters, refetchAllocations]);
 
   if (loading) return <PageWrapper><LoadingSpinner message="Loading operational dashboard…" /></PageWrapper>;
   if (error) return (

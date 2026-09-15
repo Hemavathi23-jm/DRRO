@@ -25,6 +25,7 @@ public class DisasterService {
     private final LocationRepository locationRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final AuditLogService auditLogService;
 
     public List<DisasterResponse> getAll() {
         return disasterRepository.findAllOrderByCreatedAtDesc()
@@ -62,6 +63,8 @@ public class DisasterService {
                 .build();
 
         Disaster saved = disasterRepository.save(disaster);
+        auditLogService.record(creator, "DISASTER_CREATED", "Disaster", saved.getDisasterId(),
+                null, "title=" + saved.getTitle() + ", type=" + saved.getType() + ", severity=" + saved.getSeverity());
 
         notificationService.notifyOfficers(
                 com.drro.entity.Notification.NotificationType.DISASTER_CREATED,
@@ -77,6 +80,7 @@ public class DisasterService {
     @Transactional
     public DisasterResponse update(Long id, DisasterRequest req) {
         Disaster disaster = findOrThrow(id);
+        String oldState = "status=" + disaster.getStatus() + ", severity=" + disaster.getSeverity();
         disaster.setTitle(req.getTitle());
         disaster.setType(Disaster.DisasterType.valueOf(req.getType().toUpperCase()));
         disaster.setSeverity(req.getSeverity());
@@ -87,12 +91,17 @@ public class DisasterService {
         disaster.setDescription(req.getDescription());
         if (req.getStatus() != null)
             disaster.setStatus(Disaster.DisasterStatus.valueOf(req.getStatus().toUpperCase()));
-        return toResponse(disasterRepository.save(disaster));
+        Disaster saved = disasterRepository.save(disaster);
+        auditLogService.record(disaster.getCreatedBy(), "DISASTER_UPDATED", "Disaster", saved.getDisasterId(),
+                oldState, "status=" + saved.getStatus() + ", severity=" + saved.getSeverity());
+        return toResponse(saved);
     }
 
     @Transactional
     public void delete(Long id) {
         Disaster d = findOrThrow(id);
+        auditLogService.record(d.getCreatedBy(), "DISASTER_DELETED", "Disaster", d.getDisasterId(),
+                "title=" + d.getTitle(), "DELETED");
         List<Location> locations = locationRepository.findByDisaster_DisasterId(id);
         if (locations != null && !locations.isEmpty()) {
             locationRepository.deleteAll(locations);

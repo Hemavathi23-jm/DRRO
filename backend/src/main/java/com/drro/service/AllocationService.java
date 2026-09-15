@@ -40,6 +40,7 @@ public class AllocationService {
     private final UserRepository              userRepository;
     private final DispatchRepository          dispatchRepository;
     private final AuditLogService             auditLogService;
+    private final com.drro.service.notification.SseNotificationService sseNotificationService;
 
     // -----------------------------------------------------------------------
     // 1. RUN ALLOCATION
@@ -82,6 +83,9 @@ public class AllocationService {
         }
 
         log.info("[AllocationService] '{}' created {} allocations.", strategyName, count);
+        if (count > 0) {
+            sseNotificationService.broadcast("ALLOCATION_UPDATED", java.util.Map.of("strategy", strategyName, "disasterId", disasterId, "count", count));
+        }
         return count;
     }
 
@@ -113,6 +117,9 @@ public class AllocationService {
         }
 
         log.info("[AllocationService] Global '{}' created {} allocations.", strategyName, count);
+        if (count > 0) {
+            sseNotificationService.broadcast("ALLOCATION_UPDATED", java.util.Map.of("strategy", strategyName, "count", count));
+        }
         return count;
     }
 
@@ -198,7 +205,26 @@ public class AllocationService {
         Allocation saved = allocationRepository.save(allocation);
         auditLogService.record(officer, "ALLOCATION_" + decision.name(), "Allocation", saved.getAllocationId(),
                 previousValue, "status=" + saved.getStatus() + ", allocatedQty=" + saved.getAllocatedQty());
+        
+        sseNotificationService.broadcast("ALLOCATION_DECIDED", java.util.Map.of(
+                "allocationId", saved.getAllocationId(),
+                "status", saved.getStatus().name(),
+                "decision", decision.name(),
+                "officer", officer.getName() != null ? officer.getName() : officer.getEmail()
+        ));
         return toResponse(saved);
+    }
+
+    /**
+     * Officer reviews and decides multiple allocations belonging to a multi-warehouse split order in batch.
+     */
+    @Transactional
+    public List<AllocationResponse> decideGroup(List<Long> allocationIds,
+                                               AllocationDecisionRequest req,
+                                               String officerEmail) {
+        return allocationIds.stream()
+                .map(id -> decide(id, req, officerEmail))
+                .collect(Collectors.toList());
     }
 
     // -----------------------------------------------------------------------
@@ -306,19 +332,34 @@ public class AllocationService {
     }
 
     /**
-     * Map Allocation entity → AllocationResponse DTO (with embedded factor fields).
+     * Map Allocation entity → AllocationResponse DTO (with embedded factor fields and split-order metadata).
      */
     private AllocationResponse toResponse(Allocation a) {
+        RequestItem item = a.getRequestItem();
+        BigDecimal required = item.getRequiredQty();
+        double pct = (required != null && required.compareTo(BigDecimal.ZERO) > 0)
+                ? a.getAllocatedQty().doubleValue() / required.doubleValue() * 100.0
+                : 100.0;
+        pct = Math.round(pct * 10.0) / 10.0;
+
+        String splitGroupId = "req-" + item.getRequest().getRequestId() + "-item-" + item.getRequestItemId();
+        String locationName = item.getRequest().getLocation() != null ? item.getRequest().getLocation().getName() : "Disaster Zone";
+
         AllocationResponse.AllocationResponseBuilder builder = AllocationResponse.builder()
                 .allocationId(a.getAllocationId())
-                .requestItemId(a.getRequestItem().getRequestItemId())
-                .requestId(a.getRequestItem().getRequest().getRequestId())
-                .resourceTypeName(a.getRequestItem().getResourceType().getName())
-                .unit(a.getRequestItem().getResourceType().getUnit())
+                .requestItemId(item.getRequestItemId())
+                .requestId(item.getRequest().getRequestId())
+                .resourceTypeName(item.getResourceType().getName())
+                .unit(item.getResourceType().getUnit())
+                .requiredQty(required)
+                .locationName(locationName)
                 .centerId(a.getCenter().getCenterId())
                 .centerName(a.getCenter().getName())
                 .allocatedQty(a.getAllocatedQty())
                 .priorityScore(a.getPriorityScore())
+                .splitGroupId(splitGroupId)
+                .splitContributionPct(pct)
+                .isSplit(pct < 99.9)
                 .status(a.getStatus().name())
                 .recommendedAt(a.getRecommendedAt())
                 .approvedById(a.getApprovedBy() != null ? a.getApprovedBy().getUserId() : null)

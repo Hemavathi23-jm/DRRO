@@ -21,6 +21,7 @@ public class NotificationService {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final SmsNotificationService smsNotificationService;
+    private final com.drro.service.notification.SseNotificationService sseNotificationService;
 
     @Transactional
     public NotificationResponse create(Notification.NotificationType type,
@@ -51,7 +52,16 @@ public class NotificationService {
                 .smsStatus(smsStatus)
                 .build();
 
-        return toResponse(notificationRepository.save(n));
+        NotificationResponse response = toResponse(notificationRepository.save(n));
+        
+        // Broadcast real-time SSE event
+        if (targetUser != null && targetUser.getEmail() != null) {
+            sseNotificationService.sendToUser(targetUser.getEmail(), "NOTIFICATION", response);
+        } else {
+            sseNotificationService.broadcast("NOTIFICATION", response);
+        }
+
+        return response;
     }
 
     public void notifyOfficers(Notification.NotificationType type,

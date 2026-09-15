@@ -37,6 +37,7 @@ public class DispatchService {
     private final RequestItemRepository   requestItemRepository;
     private final ReliefRequestRepository reliefRequestRepository;
     private final UserRepository          userRepository;
+    private final com.drro.service.notification.SseNotificationService sseNotificationService;
 
     // -----------------------------------------------------------------------
     // CREATE
@@ -110,7 +111,9 @@ public class DispatchService {
         dispatch.setStatus(Dispatch.DispatchStatus.IN_TRANSIT);
         commitDispatchedInventory(dispatch);
         log.info("[DispatchService] Dispatch {} marked IN_TRANSIT.", dispatchId);
-        return toResponse(dispatchRepository.save(dispatch));
+        Dispatch saved = dispatchRepository.save(dispatch);
+        sseNotificationService.broadcast("DISPATCH_UPDATED", java.util.Map.of("dispatchId", dispatchId, "status", "IN_TRANSIT"));
+        return toResponse(saved);
     }
 
     /**
@@ -168,6 +171,7 @@ public class DispatchService {
         updateRequestStatus(item.getRequest());
 
         log.info("[DispatchService] Dispatch {} DELIVERED — {} units.", dispatchId, deliveredQty);
+        sseNotificationService.broadcast("DELIVERY_COMPLETED", java.util.Map.of("dispatchId", dispatchId, "status", "DELIVERED", "deliveredQty", deliveredQty));
         return toResponse(dispatch);
     }
 
@@ -201,6 +205,7 @@ public class DispatchService {
         allocationRepository.save(allocation);
 
         log.info("[DispatchService] Dispatch {} marked FAILED.", dispatchId);
+        sseNotificationService.broadcast("DISPATCH_UPDATED", java.util.Map.of("dispatchId", dispatchId, "status", "FAILED"));
         return toResponse(dispatch);
     }
 

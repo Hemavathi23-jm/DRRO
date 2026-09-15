@@ -23,6 +23,8 @@ import TeamList from './pages/Teams/TeamList';
 import DispatchList from './pages/Dispatch/DispatchList';
 import DeliveryUpdate from './pages/Dispatch/DeliveryUpdate';
 import WeightConfig from './pages/Admin/WeightConfig';
+import AuditLogs from './pages/Admin/AuditLogs';
+import UserManagement from './pages/Admin/UserManagement';
 
 function Private({ children }) {
   return <PrivateRoute>{children}</PrivateRoute>;
@@ -63,6 +65,8 @@ export default function App() {
       <Route path="/dispatch/:id/deliver" element={<Private><DeliveryUpdate /></Private>} />
 
       <Route path="/admin/weights"        element={<Private><WeightConfig /></Private>} />
+      <Route path="/admin/audit-logs"     element={<Private><AuditLogs /></Private>} />
+      <Route path="/admin/users"          element={<Private><UserManagement /></Private>} />
 
       {/* Catch-all → login */}
       <Route path="*" element={<Navigate to="/login" replace />} />

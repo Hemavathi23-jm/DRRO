@@ -67,6 +67,19 @@ const ICONS = {
       <path d="M4 20V10M10 20V4M16 20v-7M20 20H2" strokeLinecap="round" />
     </svg>
   ),
+  audit: (
+    <svg className="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+      <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" strokeLinecap="round" />
+    </svg>
+  ),
+  users: (
+    <svg className="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
+    </svg>
+  ),
 };
 
 const NAV = [
@@ -79,6 +92,8 @@ const NAV = [
   { to: '/teams', label: 'Teams', icon: 'teams' },
   { to: '/dispatch', label: 'Dispatch', icon: 'dispatch' },
   { to: '/admin/weights', label: 'Weights', icon: 'weights' },
+  { to: '/admin/audit-logs', label: 'Audit Logs', icon: 'audit' },
+  { to: '/admin/users', label: 'Users', icon: 'users' },
 ];
 
 export default function Sidebar({ open = false, onClose, onOpenSos }) {

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import PageWrapper from '../../components/layout/PageWrapper';
 import StatusBadge from '../../components/common/StatusBadge';
@@ -37,19 +37,19 @@ export default function RecommendationList() {
     }
   };
 
-  if (loading) return <PageWrapper><LoadingSpinner message="Loading recommendations…" /></PageWrapper>;
-  if (error) return (
-    <PageWrapper>
-      <div className="empty-state">
-        <p>Unable to load allocations. {error}</p>
-        <button className="btn btn-primary mt-2" onClick={refetch}>Try again</button>
-      </div>
-    </PageWrapper>
-  );
-
   const allocations = Array.isArray(data) ? data : [];
   const filtered = filter === 'ALL' ? allocations : allocations.filter(a => a?.status === filter);
   const pending = allocations.filter(a => a?.status === 'RECOMMENDED').length;
+
+  const groupedAllocations = useMemo(() => {
+    const groups = {};
+    filtered.forEach(a => {
+      const key = a.splitGroupId || `single-${a.allocationId}`;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(a);
+    });
+    return Object.values(groups);
+  }, [filtered]);
 
   const handleApprove = async (id, e) => {
     e?.stopPropagation();
@@ -59,6 +59,25 @@ export default function RecommendationList() {
       await refetch();
     } catch (err) {
       alert(err.response?.data?.message || err.message || 'Approval failed');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleBulkApprove = async (ids, e) => {
+    e?.stopPropagation();
+    const recommendedIds = ids.filter(id => {
+      const alloc = allocations.find(a => a.allocationId === id);
+      return alloc?.status === 'RECOMMENDED';
+    });
+    if (recommendedIds.length === 0) return;
+
+    setActionLoadingId('bulk-' + recommendedIds.join('-'));
+    try {
+      await allocationApi.bulkApprove(recommendedIds);
+      await refetch();
+    } catch (err) {
+      alert(err.response?.data?.message || err.message || 'Group approval failed');
     } finally {
       setActionLoadingId(null);
     }
@@ -78,13 +97,23 @@ export default function RecommendationList() {
     }
   };
 
+  if (loading) return <PageWrapper><LoadingSpinner message="Loading recommendations…" /></PageWrapper>;
+  if (error) return (
+    <PageWrapper>
+      <div className="empty-state">
+        <p>Unable to load allocations. {error}</p>
+        <button className="btn btn-primary mt-2" onClick={refetch}>Try again</button>
+      </div>
+    </PageWrapper>
+  );
+
   return (
     <PageWrapper>
       <div className="flex-between page-header">
         <div>
           <h2 className="page-title">Allocation Recommendations</h2>
           <p className="page-sub">
-            {pending > 0 ? `${pending} allocation(s) awaiting operational approval` : 'All recommendations reviewed'}
+            {pending > 0 ? `${pending} recommendation leg(s) awaiting operational approval` : 'All recommendations reviewed'}
           </p>
         </div>
         {hasRole('OFFICER', 'ADMIN') && (
@@ -99,13 +128,13 @@ export default function RecommendationList() {
         )}
       </div>
 
-      {/* Workflow Explainer */}
+      {/* Multi-Warehouse Capability Banner */}
       <div className="card" style={{ marginBottom: 18, borderLeft: '4px solid var(--accent)', padding: '14px 18px', background: 'var(--bg-surface)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
           <div>
-            <strong style={{ fontSize: '0.92rem' }}>Decision Engine & Response Pipeline</strong>
+            <strong style={{ fontSize: '0.92rem' }}>📦 Multi-Warehouse Optimization Enabled</strong>
             <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '4px 0 0' }}>
-              The optimizer scores open demand against warehouse inventories using distance, urgency, and disaster severity. Approving an allocation automatically issues a dispatch order.
+              When relief demand exceeds the stock of the nearest resource center, the engine automatically pools capacity from the closest secondary warehouses.
             </p>
           </div>
         </div>
@@ -143,7 +172,7 @@ export default function RecommendationList() {
       )}
 
       <div className="filter-bar">
-        {['ALL', 'RECOMMENDED', 'APPROVED', 'REJECTED', 'DELIVERED'].map(s => (
+        {['ALL', 'RECOMMENDED', 'APPROVED', 'DISPATCHED', 'DELIVERED', 'REJECTED'].map(s => (
           <button
             key={s}
             type="button"
@@ -155,11 +184,11 @@ export default function RecommendationList() {
         ))}
       </div>
 
-      {filtered.length === 0 ? (
+      {groupedAllocations.length === 0 ? (
         <div className="empty-state card">
           <p style={{ fontWeight: 600, marginBottom: 6 }}>No allocation recommendations found in this view.</p>
           <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', maxWidth: 460, margin: '0 auto 16px' }}>
-            Click <strong>Run Allocation Engine</strong> to evaluate all open relief requests against current warehouse stocks and compute optimal delivery paths.
+            Click <strong>Run Allocation Engine</strong> to evaluate all open relief requests against current warehouse stocks.
           </p>
           {hasRole('OFFICER', 'ADMIN') && (
             <button className="btn btn-primary btn-sm" onClick={() => setShowRun(true)}>
@@ -168,59 +197,165 @@ export default function RecommendationList() {
           )}
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {filtered.map(a => (
-            <div key={a?.allocationId || Math.random()} className="card">
-              <div className="flex-between">
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                    <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>Request #{a?.requestId || a?.allocationId}</span>
-                    <StatusBadge status={a?.status} />
-                  </div>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                    <strong>{a?.allocatedQty ?? 0} {a?.unit || ''}</strong> of {a?.resourceTypeName || 'Supplies'} from <strong>{a?.centerName || 'Warehouse'}</strong>
-                  </div>
-                  {(a?.distanceKm != null || a?.estimatedTravelHrs != null) && (
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>
-                      {a?.distanceKm != null && `${Number(a.distanceKm || 0).toFixed(1)} km`}
-                      {a?.estimatedTravelHrs != null && ` · ${Number(a.estimatedTravelHrs || 0).toFixed(1)} hrs est.`}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {groupedAllocations.map((group) => {
+            const first = group[0];
+            const isMultiSplit = group.length > 1;
+            const totalAllocated = group.reduce((acc, a) => acc + (Number(a.allocatedQty) || 0), 0);
+            const totalDemand = Number(first.requiredQty) || totalAllocated;
+            const hasPending = group.some(a => a.status === 'RECOMMENDED');
+            const groupKey = first.splitGroupId || `single-${first.allocationId}`;
+
+            return (
+              <div
+                key={groupKey}
+                className="card"
+                style={{
+                  border: isMultiSplit ? '1px solid rgba(139, 92, 246, 0.4)' : '1px solid var(--border-subtle)',
+                  background: isMultiSplit ? 'rgba(139, 92, 246, 0.03)' : 'var(--bg-card)',
+                  padding: '16px 20px',
+                }}
+              >
+                {/* Header for the request item */}
+                <div className="flex-between" style={{ marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-primary)' }}>
+                        Request #{first.requestId} · {first.resourceTypeName}
+                      </span>
+                      {isMultiSplit && (
+                        <span
+                          style={{
+                            background: 'rgba(139, 92, 246, 0.18)',
+                            color: '#8b5cf6',
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            border: '1px solid rgba(139, 92, 246, 0.35)',
+                          }}
+                        >
+                          ⚡ Multi-Warehouse Split Order ({group.length} Centers)
+                        </span>
+                      )}
                     </div>
+                    <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: 3 }}>
+                      Destination: <strong>{first.locationName || 'Disaster Shelter'}</strong> · Total Demand: <strong>{totalDemand} {first.unit}</strong> (Fulfills {totalAllocated} {first.unit})
+                    </div>
+                  </div>
+
+                  {isMultiSplit && hasPending && hasRole('OFFICER', 'ADMIN') && (
+                    <button
+                      className="btn btn-primary btn-sm"
+                      type="button"
+                      disabled={actionLoadingId === 'bulk-' + group.map(a => a.allocationId).join('-')}
+                      onClick={(e) => handleBulkApprove(group.map(a => a.allocationId), e)}
+                      style={{ background: '#7c3aed', borderColor: '#7c3aed' }}
+                    >
+                      ⚡ Approve All {group.length} Split Legs
+                    </button>
                   )}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Priority Score</div>
-                    <div className="metric-highlight">
-                      {Number(a?.finalScore ?? a?.priorityScore ?? 0).toFixed(1)}
+
+                {/* Split Distribution Progress Bar */}
+                {isMultiSplit && (
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ display: 'flex', height: '8px', borderRadius: '4px', overflow: 'hidden', background: 'var(--bg-surface)' }}>
+                      {group.map((a, idx) => {
+                        const pct = a.splitContributionPct || 50;
+                        const colors = ['#7c3aed', '#3b82f6', '#10b981', '#f59e0b'];
+                        const col = colors[idx % colors.length];
+                        return (
+                          <div
+                            key={a.allocationId}
+                            style={{ width: `${pct}%`, background: col }}
+                            title={`${a.centerName}: ${a.allocatedQty} ${a.unit} (${pct}%)`}
+                          />
+                        );
+                      })}
                     </div>
                   </div>
-                  {a?.status === 'RECOMMENDED' && hasRole('OFFICER', 'ADMIN') && (
-                    <>
-                      <button
-                        className="btn btn-primary btn-sm"
-                        type="button"
-                        disabled={actionLoadingId === a?.allocationId}
-                        onClick={(e) => handleApprove(a?.allocationId, e)}
-                      >
-                        {actionLoadingId === a?.allocationId ? 'Approving…' : '✓ Approve & Dispatch'}
-                      </button>
-                      <button
-                        className="btn btn-danger btn-sm"
-                        type="button"
-                        disabled={actionLoadingId === a?.allocationId}
-                        onClick={(e) => handleReject(a?.allocationId, e)}
-                      >
-                        {actionLoadingId === a?.allocationId ? 'Rejecting…' : '✕ Reject'}
-                      </button>
-                    </>
-                  )}
-                  <Link to={`/allocation/${a?.allocationId}`}>
-                    <button className="btn btn-secondary btn-sm" type="button">Details</button>
-                  </Link>
+                )}
+
+                {/* Sub-cards for each warehouse leg */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {group.map((a) => (
+                    <div
+                      key={a.allocationId}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 14px',
+                        background: 'var(--bg-surface)',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-subtle)',
+                        flexWrap: 'wrap',
+                        gap: 10,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div style={{ fontSize: '1.2rem' }}>📦</div>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <strong style={{ fontSize: '0.88rem' }}>{a.centerName}</strong>
+                            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                              ({a.allocatedQty} {a.unit} · {a.splitContributionPct || 100}%)
+                            </span>
+                            <StatusBadge status={a.status} />
+                          </div>
+                          {(a.distanceKm != null || a.estimatedTravelHrs != null) && (
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                              {a.distanceKm != null && `${Number(a.distanceKm).toFixed(1)} km`}
+                              {a.estimatedTravelHrs != null && ` · ${Number(a.estimatedTravelHrs).toFixed(1)} hrs est. travel`}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Score</div>
+                          <div className="metric-highlight" style={{ fontSize: '0.9rem' }}>
+                            {Number(a.finalScore ?? a.priorityScore ?? 0).toFixed(1)}
+                          </div>
+                        </div>
+
+                        {a.status === 'RECOMMENDED' && hasRole('OFFICER', 'ADMIN') && (
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button
+                              className="btn btn-primary btn-sm"
+                              type="button"
+                              style={{ fontSize: '0.76rem', padding: '3px 8px' }}
+                              disabled={actionLoadingId === a.allocationId}
+                              onClick={(e) => handleApprove(a.allocationId, e)}
+                            >
+                              {actionLoadingId === a.allocationId ? '…' : '✓ Approve'}
+                            </button>
+                            <button
+                              className="btn btn-danger btn-sm"
+                              type="button"
+                              style={{ fontSize: '0.76rem', padding: '3px 8px' }}
+                              disabled={actionLoadingId === a.allocationId}
+                              onClick={(e) => handleReject(a.allocationId, e)}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        )}
+
+                        <Link to={`/allocation/${a.allocationId}`}>
+                          <button className="btn btn-secondary btn-sm" style={{ fontSize: '0.76rem', padding: '3px 8px' }} type="button">
+                            Details
+                          </button>
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </PageWrapper>

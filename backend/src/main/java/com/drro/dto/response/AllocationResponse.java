@@ -18,14 +18,19 @@ public class AllocationResponse {
     private Long requestId;
     private String resourceTypeName;
     private String unit;
+    private BigDecimal requiredQty;
+    private String locationName;
 
     // ---- Source center info ----
     private Long centerId;
     private String centerName;
 
-    // ---- Quantities ----
+    // ---- Quantities & Split Multi-Warehouse info ----
     private BigDecimal allocatedQty;
     private BigDecimal priorityScore;
+    private String splitGroupId;
+    private Double splitContributionPct;
+    private Boolean isSplit;
 
     // ---- Status & lifecycle ----
     private String status;
