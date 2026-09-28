@@ -1,69 +1,123 @@
-// src/pages/Reports/Reports.jsx
 import PageWrapper from '../../components/layout/PageWrapper';
+import PageHeader from '../../components/common/PageHeader';
 import ResourceUtilizationChart from '../../components/charts/ResourceUtilizationChart';
 import RequestFulfillmentChart from '../../components/charts/RequestFulfillmentChart';
 import AllocationTimeline from '../../components/charts/AllocationTimeline';
 import { useNavigate } from 'react-router-dom';
-
-const METRICS = [
-  { label:'Total Requests',          value:42  },
-  { label:'Fulfilled',               value:17  },
-  { label:'Partially Fulfilled',     value:12  },
-  { label:'Unmet',                   value:13  },
-  { label:'Avg Priority Score',      value:'76.4' },
-  { label:'Avg Fulfillment Time (h)',value:'3.2'  },
-  { label:'Total Dispatches',        value:28  },
-  { label:'Failed Dispatches',       value:2   },
-];
-
-const UNMET = [
-  { location:'Wayanad North',   resource:'Rice',          unmetQty:200 },
-  { location:'Kodagu Valley',   resource:'Life Jacket',   unmetQty:20  },
-  { location:'Munnar Heights',  resource:'Tarpaulin',     unmetQty:100 },
-];
+import { useAsyncData } from '../../hooks/useAsyncData';
+import { dashboardApi } from '../../services/api';
+import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
+import LoadingSpinner from '../../components/common/LoadingSpinner';
+import EmptyState from '../../components/common/EmptyState';
 
 export default function Reports() {
   const navigate = useNavigate();
+  const toast = useToast();
+  const { hasRole } = useAuth();
+  const { data, loading, error, refetch } = useAsyncData(() => dashboardApi.get(), []);
+
+  const handleExportPdf = async () => {
+    try {
+      const res = await dashboardApi.exportPdf();
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'drro-operational-summary.pdf';
+      a.click();
+      toast.success('Report PDF downloaded.');
+    } catch {
+      toast.error('PDF export requires officer/admin role and a running backend.');
+    }
+  };
+
+  if (loading) return <PageWrapper><LoadingSpinner message="Loading reports…" /></PageWrapper>;
+  if (error) {
+    return (
+      <PageWrapper>
+        <EmptyState
+          title="Unable to load reports"
+          description={String(error)}
+          action={<button className="btn btn-primary" type="button" onClick={refetch}>Try again</button>}
+        />
+      </PageWrapper>
+    );
+  }
+
+  const m = data || {};
+  const metrics = [
+    { label: 'Active disasters', value: m.activeDisasters ?? 0 },
+    { label: 'Open requests', value: m.openRequests ?? 0 },
+    { label: 'Pending approvals', value: m.pendingApprovals ?? 0 },
+    { label: 'Low stock alerts', value: m.lowStockAlerts ?? 0 },
+    { label: 'Active dispatches', value: m.activeDispatches ?? 0 },
+    { label: 'Fulfillment rate', value: `${m.fulfillmentRatePct ?? m.fulfillmentRate ?? 0}%` },
+  ];
+
   return (
     <PageWrapper>
-      <div className="flex-between page-header">
-        <div><h2 className="page-title">Reports & Analytics</h2><p className="page-sub">Operational summary and metrics</p></div>
-        <div style={{display:'flex',gap:10}}>
-          <button className="btn btn-secondary" onClick={()=>navigate('/reports/comparison')}>Algorithm Comparison</button>
-          <button className="btn btn-primary">Export PDF</button>
-        </div>
-      </div>
+      <PageHeader
+        title="Reports & analytics"
+        subtitle="Live operational summary from the command dashboard"
+        actions={
+          <>
+            <button className="btn btn-secondary" type="button" onClick={() => navigate('/reports/comparison')}>
+              Algorithm comparison
+            </button>
+            {hasRole('OFFICER', 'ADMIN') && (
+              <button className="btn btn-primary" type="button" onClick={handleExportPdf}>
+                Export PDF
+              </button>
+            )}
+          </>
+        }
+      />
 
-      {/* Metric Cards */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(155px,1fr))',gap:12,marginBottom:20}}>
-        {METRICS.map(m=>(
-          <div className="kpi-card" key={m.label}>
-            <span className="kpi-label">{m.label}</span>
-            <span className="kpi-value">{m.value}</span>
+      <div className="grid-kpi">
+        {metrics.map((item) => (
+          <div className="kpi-card" key={item.label}>
+            <span className="kpi-label">{item.label}</span>
+            <span className="kpi-value">{item.value}</span>
           </div>
         ))}
       </div>
 
-      <div className="grid-2" style={{marginBottom:16}}>
-        <ResourceUtilizationChart />
-        <RequestFulfillmentChart />
+      <div className="grid-2 section-block">
+        <ResourceUtilizationChart data={m.utilization} />
+        <RequestFulfillmentChart metrics={m} />
       </div>
-      <div style={{marginBottom:16}}><AllocationTimeline /></div>
+      <div className="section-block">
+        <AllocationTimeline data={m.baselineComparison} />
+      </div>
 
-      {/* Unmet Demand */}
-      <div className="card">
-        <p className="card-title" style={{marginBottom:12}}>Unmet Demand by Location</p>
-        {UNMET.map(u=>(
-          <div key={u.location} style={{marginBottom:14}}>
-            <div className="flex-between" style={{marginBottom:4}}>
-              <span style={{fontWeight:600,fontSize:'0.875rem'}}>{u.location} — {u.resource}</span>
-              <span style={{color:'var(--danger)',fontWeight:700}}>{u.unmetQty} units unmet</span>
-            </div>
-            <div className="progress-bar">
-              <div className="progress-bar-fill progress-bar-fill--danger" style={{ width: `${Math.min(u.unmetQty/3,100)}%` }} />
-            </div>
+      <div className="card section-block">
+        <p className="card-title">Critical unmet demand</p>
+        {!m.unmetDemand?.length ? (
+          <p className="text-muted">No unmet demand currently reported.</p>
+        ) : (
+          <div className="stack-list">
+            {m.unmetDemand.slice(0, 12).map((u, i) => (
+              <div className="stack-card stack-card--static" key={i}>
+                <div className="stack-card-main">
+                  <div className="stack-card-title" title={u.locationName}>{u.locationName}</div>
+                  <div className="stack-card-sub">
+                    {u.resourceTypeName || u.resourceName || 'Supplies'}
+                    {u.unit ? ` · ${u.unit}` : ''}
+                  </div>
+                </div>
+                <div className="stack-card-meta">
+                  <div className="stack-card-qty">
+                    <span className="stack-card-qty-label">Unmet</span>
+                    <span className="stack-card-qty-value">{u.unmetQty}</span>
+                  </div>
+                  <span className={`badge badge-${String(u.urgency || 'normal').toLowerCase()}`}>
+                    {u.urgency || 'NORMAL'}
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
+        )}
       </div>
     </PageWrapper>
   );

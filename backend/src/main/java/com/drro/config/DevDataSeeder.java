@@ -37,6 +37,8 @@ public class DevDataSeeder {
     private final RequestItemRepository requestItemRepository;
     private final ResponseTeamRepository responseTeamRepository;
     private final WeightConfigRepository weightConfigRepository;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
 
     private static final String DEMO_PASSWORD = "Admin@123";
 
@@ -51,8 +53,13 @@ public class DevDataSeeder {
 
     @Order(1)
     @EventListener(ApplicationReadyEvent.class)
-    @Transactional
     public void seedAll() {
+        syncSequences();
+        runTransactionalSeed();
+    }
+
+    @Transactional
+    public void runTransactionalSeed() {
         seedDemoUsers();
         seedResourceTypes();
         seedWeightConfig();
@@ -65,6 +72,42 @@ public class DevDataSeeder {
                 resourceCenterRepository.count(),
                 reliefRequestRepository.count());
     }
+
+    public void syncSequences() {
+        List<String[]> tables = List.of(
+                new String[]{"notifications", "notification_id"},
+                new String[]{"sms_logs", "sms_id"},
+                new String[]{"relief_requests", "request_id"},
+                new String[]{"request_items", "request_item_id"},
+                new String[]{"allocations", "allocation_id"},
+                new String[]{"dispatches", "dispatch_id"},
+                new String[]{"locations", "location_id"},
+                new String[]{"disasters", "disaster_id"},
+                new String[]{"inventory", "inventory_id"},
+                new String[]{"response_teams", "team_id"},
+                new String[]{"resource_centers", "center_id"},
+                new String[]{"resource_types", "resource_type_id"},
+                new String[]{"users", "user_id"},
+                new String[]{"audit_logs", "log_id"}
+        );
+
+        for (String[] t : tables) {
+            try {
+                String table = t[0];
+                String col = t[1];
+                String sql = String.format(
+                        "SELECT setval(pg_get_serial_sequence('%s', '%s'), COALESCE((SELECT MAX(%s) FROM %s), 0) + 1, false)",
+                        table, col, col, table
+                );
+                jdbcTemplate.execute(sql);
+            } catch (Exception e) {
+                log.debug("[SequenceSync] Sequence sync note for {}: {}", t[0], e.getMessage());
+            }
+        }
+        log.info("[SequenceSync] PostgreSQL database sequences synchronized successfully.");
+    }
+
+
 
     private void seedDemoUsers() {
         ROLES.forEach(r -> roleRepository.findByRoleName(r).orElseGet(() ->

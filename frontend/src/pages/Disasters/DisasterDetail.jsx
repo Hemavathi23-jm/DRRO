@@ -8,6 +8,7 @@ import { useAsyncData } from '../../hooks/useAsyncData';
 import { disasterApi, locationApi } from '../../services/api';
 import { formatDateTime } from '../../utils/formatters';
 import { useAuth } from '../../context/AuthContext';
+import Icon from '../../components/common/Icon';
 
 const STATUSES = ['ACTIVE', 'CONTAINED', 'RECOVERING', 'CLOSED'];
 
@@ -102,7 +103,15 @@ export default function DisasterDetail() {
                   className={`btn ${s === d.status ? 'btn-primary' : 'btn-secondary'}`}
                   style={{ justifyContent: 'flex-start' }}
                   onClick={() => handleStatusUpdate(s)}>
-                  {s === d.status ? '● ' : '○ '}{s}{s === 'CLOSED' ? ' 📦 (Archive)' : ''}
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <Icon name={s === d.status ? 'dot' : 'circle'} size={10} />
+                    {s}
+                    {s === 'CLOSED' ? (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, opacity: 0.85 }}>
+                        <Icon name="package" size={12} /> (Archive)
+                      </span>
+                    ) : null}
+                  </span>
                 </button>
               ))}
             </div>

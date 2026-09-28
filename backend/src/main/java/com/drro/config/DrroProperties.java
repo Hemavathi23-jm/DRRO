@@ -25,6 +25,30 @@ public class DrroProperties {
     /** CORS settings */
     private Cors cors = new Cors();
 
+    /** SMS settings */
+    private Sms sms = new Sms();
+
+    @Getter @Setter
+    public static class Sms {
+        private boolean enabled = true;
+        private String provider = "twilio"; // twilio, fast2sms, mock
+        private String adminPhone = "+15550199";
+        private Twilio twilio = new Twilio();
+        private Fast2Sms fast2sms = new Fast2Sms();
+
+        @Getter @Setter
+        public static class Twilio {
+            private String accountSid = "";
+            private String authToken = "";
+            private String fromNumber = "";
+        }
+
+        @Getter @Setter
+        public static class Fast2Sms {
+            private String apiKey = "";
+        }
+    }
+
     @Getter @Setter
     public static class Jwt {
         /** Secret key for signing JWT tokens (read from JWT_SECRET in .env) */
@@ -40,3 +64,4 @@ public class DrroProperties {
         private String allowedOrigins = "http://localhost:5173";
     }
 }
+

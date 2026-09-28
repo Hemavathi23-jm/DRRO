@@ -6,6 +6,7 @@ import StatusBadge from '../../components/common/StatusBadge';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import { dispatchApi } from '../../services/api';
 import { formatDateTime } from '../../utils/formatters';
+import Icon from '../../components/common/Icon';
 
 export default function DeliveryUpdate() {
   const { id } = useParams();
@@ -156,7 +157,7 @@ export default function DeliveryUpdate() {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
             <h2 className="page-title" style={{ margin: 0, fontSize: '1.4rem' }}>
-              🚚 Field Delivery Manifest
+              <Icon name="truck" size={18} /> Field Delivery Manifest
             </h2>
             <StatusBadge status={dispatch.status} />
           </div>
@@ -211,7 +212,9 @@ export default function DeliveryUpdate() {
         {dispatch.status === 'CREATED' && (
           <div className="card" style={{ marginBottom: 16, background: 'rgba(139, 92, 246, 0.06)', borderColor: 'rgba(139, 92, 246, 0.3)' }}>
             <div style={{ textAlign: 'center', padding: '12px 6px' }}>
-              <div style={{ fontSize: '2rem', marginBottom: 8 }}>🚚</div>
+              <div style={{ marginBottom: 8, color: 'var(--accent)' }}>
+                <Icon name="truck" size={36} />
+              </div>
               <h4 style={{ margin: '0 0 6px 0' }}>Vehicle Ready to Depart?</h4>
               <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: 16 }}>
                 Notify command center that the shipment is en route to the site.
@@ -223,7 +226,11 @@ export default function DeliveryUpdate() {
                 disabled={transitLoading}
                 onClick={handleStartTransit}
               >
-                {transitLoading ? 'Updating…' : '🚚 Start Transit (Deploy En Route)'}
+                {transitLoading ? 'Updating…' : (
+                  <>
+                    <Icon name="truck" size={14} /> Start Transit (Deploy En Route)
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -233,7 +240,9 @@ export default function DeliveryUpdate() {
         {dispatch.status !== 'DELIVERED' ? (
           <div className="card">
             <h4 style={{ margin: '0 0 14px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
-              ✍️ Handover & Proof of Delivery
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <Icon name="pen" size={16} /> Handover & Proof of Delivery
+              </span>
             </h4>
 
             <form onSubmit={handleSubmitDelivery}>
@@ -316,7 +325,7 @@ export default function DeliveryUpdate() {
                         userSelect: 'none',
                       }}
                     >
-                      ✍️ Sign here upon handover
+                      <Icon name="pen" size={14} /> Sign here upon handover
                     </div>
                   )}
                 </div>
@@ -346,7 +355,7 @@ export default function DeliveryUpdate() {
                       style={{ position: 'absolute', top: 6, right: 6, fontSize: '0.7rem', padding: '2px 6px', background: 'rgba(0,0,0,0.7)', color: '#fff' }}
                       onClick={() => setPhotoPreview(null)}
                     >
-                      ✕ Remove
+                      <Icon name="x" size={14} /> Remove
                     </button>
                   </div>
                 )}
@@ -366,13 +375,17 @@ export default function DeliveryUpdate() {
 
               {submitError && (
                 <div style={{ color: 'var(--danger)', marginBottom: 14, fontSize: '0.875rem', background: 'rgba(239, 68, 68, 0.1)', padding: '10px 14px', borderRadius: 'var(--radius-sm)' }}>
-                  ⚠️ {submitError}
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <Icon name="warning" size={14} /> {submitError}
+                  </span>
                 </div>
               )}
 
               {done && (
                 <div className="form-success" style={{ marginBottom: 14, fontWeight: 600, fontSize: '0.95rem' }}>
-                  ✓ Delivery confirmed! Central stock & relief demand updated.
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <Icon name="check" size={14} /> Delivery confirmed! Central stock & relief demand updated.
+                  </span>
                 </div>
               )}
 
@@ -384,7 +397,11 @@ export default function DeliveryUpdate() {
                   disabled={submitting}
                   style={{ width: '100%', padding: '14px', fontSize: '1.05rem', fontWeight: 700 }}
                 >
-                  {submitting ? 'Verifying & Fulfilling…' : '✓ Confirm Delivery & Fulfill Demand'}
+                  {submitting ? 'Verifying & Fulfilling…' : (
+                    <>
+                      <Icon name="check" size={14} /> Confirm Delivery & Fulfill Demand
+                    </>
+                  )}
                 </button>
                 <button
                   className="btn btn-secondary"
@@ -400,7 +417,9 @@ export default function DeliveryUpdate() {
         ) : (
           /* Delivered State Card */
           <div className="card" style={{ textAlign: 'center', padding: '24px 16px', background: 'rgba(16, 185, 129, 0.08)', borderColor: 'rgba(16, 185, 129, 0.3)' }}>
-            <div style={{ fontSize: '2.5rem', color: 'var(--success)', marginBottom: 10 }}>✓</div>
+            <div style={{ color: 'var(--success)', marginBottom: 10 }}>
+              <Icon name="checkCircle" size={40} />
+            </div>
             <h3 style={{ margin: '0 0 8px 0', color: 'var(--success)' }}>Delivery Completed & Verified</h3>
             <p style={{ margin: '0 0 16px 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
               Delivered <strong>{dispatch.deliveredQty || dispatch.allocatedQty} {dispatch.unit || 'units'}</strong> of {dispatch.resourceTypeName} to {dispatch.locationName}.

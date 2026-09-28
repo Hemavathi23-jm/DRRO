@@ -1,22 +1,44 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import PageWrapper from '../../components/layout/PageWrapper';
+import PageHeader from '../../components/common/PageHeader';
 import StatusBadge from '../../components/common/StatusBadge';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import ConfirmModal from '../../components/common/ConfirmModal';
+import EmptyState from '../../components/common/EmptyState';
+import FilterBar from '../../components/common/FilterBar';
 import { useAsyncData } from '../../hooks/useAsyncData';
+import { useUrlFilters } from '../../hooks/useUrlFilters';
 import { disasterApi, externalDataApi } from '../../services/api';
 import { formatDateTime } from '../../utils/formatters';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
+import Icon from '../../components/common/Icon';
+
+const FILTER_DEFAULTS = { tab: 'ACTIVE', status: 'ALL', q: '' };
 
 export default function DisasterList() {
   const { hasRole } = useAuth();
+  const toast = useToast();
   const navigate = useNavigate();
-  const [tab, setTab] = useState('ACTIVE'); // 'ACTIVE' (operational) | 'ARCHIVES' (closed) | 'ALL'
-  const [subFilter, setSubFilter] = useState('ALL');
+  const { values, setValue, setMany, clearAll } = useUrlFilters(FILTER_DEFAULTS);
   const [fetching, setFetching] = useState(false);
   const [fetchMessage, setFetchMessage] = useState('');
-  const { data: scrapeStatus } = useAsyncData(() => externalDataApi.status(), []);
-  const { data, loading, error, refetch } = useAsyncData(() => disasterApi.list(), []);
+  const [confirm, setConfirm] = useState(null);
+  const { data: scrapeStatus, refetch: refetchStatus } = useAsyncData(
+    () => externalDataApi.status(),
+    [],
+    { pollIntervalMs: 30000 },
+  );
+  const { data, loading, error, refetch } = useAsyncData(
+    () => disasterApi.list(),
+    [],
+    { pollIntervalMs: 30000 },
+  );
+
+  const intervalMinutes = scrapeStatus?.fetchIntervalMs
+    ? Math.max(1, Math.round(scrapeStatus.fetchIntervalMs / 60000))
+    : 5;
 
   const handleWebFetch = async () => {
     setFetching(true);
@@ -25,19 +47,25 @@ export default function DisasterList() {
       const result = await externalDataApi.fetch();
       const created = result.recordsCreated ?? 0;
       const updated = result.recordsUpdated ?? 0;
-      setFetchMessage(`Synced from web feeds: ${created} new, ${updated} updated.`);
+      const sources = Array.isArray(result.sources) ? result.sources : [];
+      const sourceSummary = sources
+        .map((s) => `${s.source}: ${s.status === 'SUCCESS' ? `${s.recordsFound ?? 0} found` : 'failed'}`)
+        .join(' · ');
+      const msg = `Synced from live web feeds: ${created} new, ${updated} updated${sourceSummary ? ` (${sourceSummary})` : ''}.`;
+      setFetchMessage(msg);
+      toast.success(`Live sync complete · ${created} new · ${updated} updated`);
       refetch();
+      refetchStatus();
     } catch (e) {
-      setFetchMessage(e.response?.data?.message || e.message || 'Web fetch failed.');
+      const msg = e.response?.data?.message || e.message || 'Web fetch failed.';
+      setFetchMessage(msg);
+      toast.error(msg);
     } finally {
       setFetching(false);
     }
   };
 
-  const handleArchive = async (e, d) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!window.confirm(`Close and archive "${d.title}"?`)) return;
+  const runArchive = async (d) => {
     try {
       await disasterApi.update(d.disasterId, {
         title: d.title,
@@ -50,9 +78,10 @@ export default function DisasterList() {
         description: d.description,
         status: 'CLOSED',
       });
+      toast.success(`Archived “${d.title}”.`);
       refetch();
     } catch {
-      alert('Failed to archive disaster.');
+      toast.error('Failed to archive disaster.');
     }
   };
 
@@ -71,143 +100,183 @@ export default function DisasterList() {
         description: d.description,
         status: 'ACTIVE',
       });
+      toast.success(`Restored “${d.title}”.`);
       refetch();
     } catch {
-      alert('Failed to restore disaster.');
+      toast.error('Failed to restore disaster.');
     }
   };
 
-  const handleDeletePermanent = async (e, id) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!window.confirm('Are you sure you want to PERMANENTLY delete this archived record? This action cannot be undone.')) return;
+  const runDelete = async (id) => {
     try {
       await disasterApi.delete(id);
+      toast.success('Disaster record permanently deleted.');
       refetch();
     } catch {
-      alert('Failed to delete disaster record.');
+      toast.error('Failed to delete disaster record.');
     }
   };
 
-  if (loading) return <PageWrapper><LoadingSpinner message="Loading disasters…" /></PageWrapper>;
-  if (error) return (
-    <PageWrapper>
-      <div className="empty-state">
-        <p>Unable to load disasters. {error}</p>
-        <button className="btn btn-primary mt-2" onClick={refetch}>Try again</button>
-      </div>
-    </PageWrapper>
+  const allDisasters = useMemo(() => (Array.isArray(data) ? data : []), [data]);
+  const activeDisasters = useMemo(
+    () => allDisasters.filter((d) => d.status !== 'CLOSED'),
+    [allDisasters],
+  );
+  const archivedDisasters = useMemo(
+    () => allDisasters.filter((d) => d.status === 'CLOSED'),
+    [allDisasters],
   );
 
-  const allDisasters = data || [];
-  const activeDisasters = allDisasters.filter(d => d.status !== 'CLOSED');
-  const archivedDisasters = allDisasters.filter(d => d.status === 'CLOSED');
+  const displayList = useMemo(() => {
+    const currentTab = values.tab || 'ACTIVE';
+    let list = currentTab === 'ARCHIVES'
+      ? archivedDisasters
+      : currentTab === 'ACTIVE'
+        ? activeDisasters
+        : allDisasters;
+    if (values.status !== 'ALL') list = list.filter((d) => d.status === values.status);
+    const q = (values.q || '').trim().toLowerCase();
+    if (q) {
+      list = list.filter((d) =>
+        [d.title, d.type, d.status, d.description, d.externalSource]
+          .filter(Boolean)
+          .some((v) => String(v).toLowerCase().includes(q)),
+      );
+    }
+    return list;
+  }, [allDisasters, activeDisasters, archivedDisasters, values]);
 
-  let displayList = tab === 'ARCHIVES' ? archivedDisasters : tab === 'ACTIVE' ? activeDisasters : allDisasters;
-  if (subFilter !== 'ALL') {
-    displayList = displayList.filter(d => d.status === subFilter);
+  const tab = values.tab || 'ACTIVE';
+
+  if (loading) return <PageWrapper><LoadingSpinner message="Loading disasters…" /></PageWrapper>;
+  if (error) {
+    return (
+      <PageWrapper>
+        <EmptyState
+          title="Unable to load disasters"
+          description={String(error)}
+          action={<button className="btn btn-primary" type="button" onClick={refetch}>Try again</button>}
+        />
+      </PageWrapper>
+    );
   }
 
   return (
     <PageWrapper>
-      <div className="flex-between page-header">
-        <div>
-          <h2 className="page-title">Disasters Command</h2>
-          <p className="page-sub">
-            {activeDisasters.length} active incidents · <span style={{ color: 'var(--text-muted)' }}>{archivedDisasters.length} in archives</span>
-          </p>
-          {scrapeStatus?.fetchedAt && (
-            <p className="text-muted" style={{ fontSize: '0.786rem', marginTop: 4 }}>
-              Last web sync: {formatDateTime(scrapeStatus.fetchedAt)}
-              {scrapeStatus.status ? ` · ${scrapeStatus.status}` : ''}
-            </p>
-          )}
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {hasRole('OFFICER', 'ADMIN') && (
+      <PageHeader
+        title="Disasters"
+        subtitle={`${activeDisasters.length} active · ${archivedDisasters.length} archived · live web feeds`}
+        actions={
+          hasRole('OFFICER', 'ADMIN') && (
             <>
-              <button
-                className="btn btn-secondary"
-                onClick={handleWebFetch}
-                disabled={fetching}
-                type="button"
-              >
-                {fetching ? 'Fetching…' : '🌐 Fetch from Web'}
+              <button className="btn btn-secondary" onClick={handleWebFetch} disabled={fetching} type="button">
+                {fetching ? 'Fetching live data…' : 'Fetch from web'}
               </button>
               <button className="btn btn-primary" onClick={() => navigate('/disasters/create')} type="button">
-                + Report Disaster
+                Report disaster
               </button>
             </>
+          )
+        }
+      >
+        {scrapeStatus?.fetchedAt && (
+          <p className="text-muted" style={{ fontSize: '0.786rem', marginTop: 4 }}>
+            Last web sync: {formatDateTime(scrapeStatus.fetchedAt)}
+            {scrapeStatus.status ? ` · ${scrapeStatus.status}` : ''}
+            {scrapeStatus.autoFetchEnabled !== false
+              ? ` · auto every ${intervalMinutes} min`
+              : ' · auto-fetch off'}
+            {scrapeStatus.running ? ' · syncing…' : ''}
+          </p>
+        )}
+      </PageHeader>
+
+      <aside className="info-callout" role="note">
+        <div className="info-callout-icon" aria-hidden>
+          <Icon name="globe" size={16} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p className="info-callout-title">Live disaster feeds</p>
+          <p className="info-callout-body">
+            DRRO continuously pulls open verified data from GDACS, USGS earthquakes, NASA EONET,
+            and OpenStreetMap (India &amp; Nepal focus) every {intervalMinutes} minutes.
+            Use <strong>Sync now</strong> for an immediate refresh — the list also auto-updates.
+          </p>
+          {Array.isArray(scrapeStatus?.sources) && scrapeStatus.sources.length > 0 && (
+            <div className="feed-source-row">
+              {scrapeStatus.sources
+                .filter((s) => s.source !== 'RELIEFWEB')
+                .map((s) => (
+                  <span
+                    key={s.source}
+                    className={`feed-source-chip${s.status === 'SUCCESS' ? ' is-ok' : s.status === 'FAILED' ? ' is-bad' : ''}`}
+                  >
+                    {String(s.source).replace(/_/g, ' ')}
+                    {s.status === 'SUCCESS' ? ` · ${s.recordsFound ?? 0}` : s.status === 'FAILED' ? ' · error' : ''}
+                  </span>
+                ))}
+            </div>
           )}
         </div>
-      </div>
+        {hasRole('OFFICER', 'ADMIN') && (
+          <button className="btn btn-primary btn-sm" type="button" onClick={handleWebFetch} disabled={fetching}>
+            {fetching ? 'Syncing…' : 'Sync now'}
+          </button>
+        )}
+      </aside>
 
       {fetchMessage && (
-        <div className="card" style={{ marginBottom: 12, fontSize: '0.857rem' }}>
+        <div className="status-banner status-banner--success" role="status">
           {fetchMessage}
         </div>
       )}
 
-      {/* Main Mode Tabs */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
-        <button
-          type="button"
-          className={`btn ${tab === 'ACTIVE' ? 'btn-primary' : 'btn-secondary'}`}
-          onClick={() => { setTab('ACTIVE'); setSubFilter('ALL'); }}
-        >
-          🚨 Active Incidents ({activeDisasters.length})
-        </button>
-        <button
-          type="button"
-          className={`btn ${tab === 'ARCHIVES' ? 'btn-primary' : 'btn-secondary'}`}
-          onClick={() => { setTab('ARCHIVES'); setSubFilter('ALL'); }}
-        >
-          📦 Archives ({archivedDisasters.length})
-        </button>
-        <button
-          type="button"
-          className={`btn ${tab === 'ALL' ? 'btn-primary' : 'btn-secondary'}`}
-          onClick={() => { setTab('ALL'); setSubFilter('ALL'); }}
-        >
-          All Records ({allDisasters.length})
-        </button>
-      </div>
-
-      {tab === 'ACTIVE' && (
-        <div className="filter-bar">
-          {['ALL', 'ACTIVE', 'CONTAINED', 'RECOVERING'].map(s => (
-            <button
-              key={s}
-              type="button"
-              className={`btn btn-sm ${subFilter === s ? 'btn-primary' : 'btn-secondary'}`}
-              onClick={() => setSubFilter(s)}
-            >
-              {s === 'ALL' ? 'All Active' : s.charAt(0) + s.slice(1).toLowerCase()}
-            </button>
-          ))}
-        </div>
-      )}
+      <FilterBar
+        values={values}
+        onChange={(key, value) => {
+          if (key === 'tab') setMany({ tab: value, status: 'ALL' });
+          else setValue(key, value);
+        }}
+        onClear={clearAll}
+        resultCount={displayList.length}
+        filters={[
+          {
+            key: 'tab',
+            label: 'View',
+            type: 'chips',
+            options: [
+              { value: 'ACTIVE', label: `Active (${activeDisasters.length})` },
+              { value: 'ARCHIVES', label: `Archives (${archivedDisasters.length})` },
+              { value: 'ALL', label: `All (${allDisasters.length})` },
+            ],
+          },
+          ...(tab === 'ACTIVE'
+            ? [{ key: 'status', label: 'Status', type: 'chips', options: ['ALL', 'ACTIVE', 'CONTAINED', 'RECOVERING'] }]
+            : []),
+          { key: 'q', label: 'Search', type: 'search', placeholder: 'Search title, type, source…' },
+        ]}
+      />
 
       {displayList.length === 0 ? (
-        <div className="empty-state card">
-          <p style={{ fontWeight: 600 }}>
-            {tab === 'ARCHIVES' ? 'No archived disasters.' : 'No active disasters found.'}
-          </p>
-          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 4 }}>
-            {tab === 'ARCHIVES'
-              ? 'When a disaster is closed, it is automatically preserved here in the archives.'
-              : 'All reported incidents are either contained or archived.'}
-          </p>
-          {hasRole('OFFICER', 'ADMIN') && tab === 'ACTIVE' && (
-            <button className="btn btn-secondary mt-2" onClick={handleWebFetch} disabled={fetching} type="button">
-              🌐 Fetch Latest from Web Feeds
-            </button>
-          )}
-        </div>
+        <EmptyState
+          title={tab === 'ARCHIVES' ? 'No archived disasters' : 'No active disasters'}
+          description={
+            tab === 'ARCHIVES'
+              ? 'Closed incidents are preserved here automatically.'
+              : 'Report a new incident or sync from web feeds.'
+          }
+          action={
+            hasRole('OFFICER', 'ADMIN') && tab === 'ACTIVE' ? (
+              <button className="btn btn-secondary" onClick={handleWebFetch} disabled={fetching} type="button">
+                Fetch latest from web feeds
+              </button>
+            ) : null
+          }
+        />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {displayList.map(d => (
-            <div key={d.disasterId} className="card" style={{ transition: 'box-shadow var(--transition)' }}>
+          {displayList.map((d) => (
+            <div key={d.disasterId} className="card">
               <div className="flex-between">
                 <Link to={`/disasters/${d.disasterId}`} style={{ textDecoration: 'none', color: 'inherit', flex: 1 }}>
                   <div>
@@ -221,25 +290,40 @@ export default function DisasterList() {
                   </div>
                 </Link>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Severity</div>
-                    <div style={{ fontWeight: 700, fontSize: '0.95rem', color: d.severity >= 80 ? 'var(--danger)' : d.severity >= 60 ? 'var(--warning)' : 'var(--success)' }}>
+                    <div
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontWeight: 600,
+                        fontSize: '0.95rem',
+                        color: d.severity >= 80 ? 'var(--danger)' : d.severity >= 60 ? 'var(--warning)' : 'var(--success)',
+                      }}
+                    >
                       {d.severity}/100
                     </div>
                   </div>
                   <StatusBadge status={d.status} />
 
-                  {/* Actions */}
                   {hasRole('OFFICER', 'ADMIN') && d.status !== 'CLOSED' && (
                     <button
                       className="btn btn-secondary btn-sm"
                       type="button"
-                      style={{ fontSize: '0.78rem', padding: '4px 8px' }}
-                      title="Close incident and move to archives"
-                      onClick={(e) => handleArchive(e, d)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setConfirm({
+                          type: 'archive',
+                          title: 'Close & archive',
+                          message: `Close and archive “${d.title}”? It will move to archives.`,
+                          confirmLabel: 'Archive',
+                          confirmClass: 'btn btn-primary',
+                          onConfirm: () => runArchive(d),
+                        });
+                      }}
                     >
-                      📦 Close & Archive
+                      Close & archive
                     </button>
                   )}
 
@@ -248,29 +332,55 @@ export default function DisasterList() {
                       <button
                         className="btn btn-secondary btn-sm"
                         type="button"
-                        style={{ fontSize: '0.78rem', padding: '4px 8px' }}
                         onClick={(e) => handleRestore(e, d)}
                       >
-                        🔄 Restore
+                        Restore
                       </button>
                       {hasRole('ADMIN') && (
                         <button
                           className="btn btn-danger btn-sm"
                           type="button"
-                          style={{ fontSize: '0.78rem', padding: '4px 8px' }}
-                          onClick={(e) => handleDeletePermanent(e, d.disasterId)}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setConfirm({
+                              type: 'delete',
+                              title: 'Permanently delete',
+                              message: 'This archived record will be permanently deleted. This cannot be undone.',
+                              confirmLabel: 'Delete forever',
+                              confirmClass: 'btn btn-danger',
+                              onConfirm: () => runDelete(d.disasterId),
+                            });
+                          }}
                         >
-                          🗑️ Purge
+                          Purge
                         </button>
                       )}
                     </>
                   )}
                 </div>
               </div>
-              {d.description && <p style={{ marginTop: 8, fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{d.description}</p>}
+              {d.description && (
+                <p style={{ marginTop: 8, fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{d.description}</p>
+              )}
             </div>
           ))}
         </div>
+      )}
+
+      {confirm && (
+        <ConfirmModal
+          title={confirm.title}
+          message={confirm.message}
+          confirmLabel={confirm.confirmLabel}
+          confirmClass={confirm.confirmClass}
+          onCancel={() => setConfirm(null)}
+          onConfirm={async () => {
+            const action = confirm.onConfirm;
+            setConfirm(null);
+            await action();
+          }}
+        />
       )}
     </PageWrapper>
   );

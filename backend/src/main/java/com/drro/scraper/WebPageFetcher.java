@@ -30,6 +30,22 @@ public class WebPageFetcher {
         }
     }
 
+    /** Raw body for JSON APIs (NASA EONET, ReliefWeb, etc.). */
+    public String fetchBody(String url) {
+        try {
+            Connection.Response response = Jsoup.connect(url)
+                    .userAgent(userAgent)
+                    .timeout(timeoutMs)
+                    .ignoreContentType(true)
+                    .followRedirects(true)
+                    .header("Accept", "application/json, text/plain, */*")
+                    .execute();
+            return response.body();
+        } catch (Exception e) {
+            throw new WebScrapeException("Failed to fetch " + url + ": " + e.getMessage(), e);
+        }
+    }
+
     public String postForm(String url, String fieldName, String fieldValue) {
         try {
             Connection.Response response = Jsoup.connect(url)

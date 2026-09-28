@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { NotificationProvider } from './context/NotificationContext';
+import { ToastProvider } from './context/ToastContext';
 import CriticalAlertModal from './components/common/CriticalAlertModal';
 import App from './App.jsx';
 import './index.css';
@@ -13,8 +14,10 @@ function AppShell() {
     <AuthProvider>
       <ThemeProvider>
         <NotificationProvider>
-          <App />
-          <CriticalAlertModal />
+          <ToastProvider>
+            <App />
+            <CriticalAlertModal />
+          </ToastProvider>
         </NotificationProvider>
       </ThemeProvider>
     </AuthProvider>

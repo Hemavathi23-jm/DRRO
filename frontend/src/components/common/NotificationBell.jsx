@@ -1,36 +1,49 @@
 import { useState } from 'react';
 import { useNotifications } from '../../context/NotificationContext';
 import { formatDateTime } from '../../utils/formatters';
+import Icon from './Icon';
 
 export default function NotificationBell() {
   const { notifications, unreadCount, markAllRead } = useNotifications();
   const [open, setOpen] = useState(false);
 
   return (
-    <div style={{ position: 'relative' }}>
-      <button className="btn-icon" type="button" onClick={() => setOpen(o => !o)} aria-label="Notifications">
-        Alerts{unreadCount > 0 ? ` (${unreadCount})` : ''}
+    <div className="notif-wrap">
+      <button
+        className="btn-icon notif-trigger"
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
+        aria-expanded={open}
+      >
+        <Icon name="bell" size={18} />
+        {unreadCount > 0 && <span className="notif-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>}
+        <span className="notif-trigger-label">Alerts{unreadCount > 0 ? ` (${unreadCount})` : ''}</span>
       </button>
       {open && (
         <>
           <div className="notif-backdrop" onClick={() => setOpen(false)} />
           <div className="notif-panel">
-            <div className="flex-between" style={{ padding: '10px 12px', borderBottom: '1px solid var(--border-subtle)' }}>
-              <strong style={{ fontSize: '0.857rem' }}>Notifications</strong>
+            <div className="flex-between" style={{ padding: '12px 14px', borderBottom: '1px solid var(--border-subtle)' }}>
+              <strong style={{ fontSize: '0.9rem' }}>Notifications</strong>
               {unreadCount > 0 && (
-                <button className="btn btn-sm btn-secondary" type="button" onClick={markAllRead}>Mark all read</button>
+                <button className="btn btn-sm btn-secondary" type="button" onClick={markAllRead}>
+                  Mark all read
+                </button>
               )}
             </div>
             <div style={{ maxHeight: 320, overflowY: 'auto' }}>
               {notifications.length === 0 ? (
                 <p style={{ padding: 16, color: 'var(--text-muted)', fontSize: '0.857rem' }}>No notifications</p>
-              ) : notifications.map(n => (
-                <div key={n.notificationId} className={`notif-item${n.read ? '' : ' unread'}`}>
-                  <div style={{ fontWeight: 600 }}>{n.title}</div>
-                  <div style={{ color: 'var(--text-secondary)', marginTop: 2 }}>{n.message}</div>
-                  <div className="text-muted" style={{ marginTop: 4 }}>{formatDateTime(n.createdAt)}</div>
-                </div>
-              ))}
+              ) : (
+                notifications.map((n) => (
+                  <div key={n.notificationId} className={`notif-item${n.read ? '' : ' unread'}`}>
+                    <div style={{ fontWeight: 600 }}>{n.title}</div>
+                    <div style={{ color: 'var(--text-secondary)', marginTop: 2 }}>{n.message}</div>
+                    <div className="text-muted" style={{ marginTop: 4 }}>{formatDateTime(n.createdAt)}</div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </>

@@ -1,0 +1,12 @@
+export default function PageHeader({ title, subtitle, children, actions }) {
+  return (
+    <header className="page-header">
+      <div>
+        <h1 className="page-title">{title}</h1>
+        {subtitle && <p className="page-sub">{subtitle}</p>}
+        {children}
+      </div>
+      {actions && <div className="page-header-actions">{actions}</div>}
+    </header>
+  );
+}

@@ -148,3 +148,12 @@ export const auditLogApi = {
   list: (params) => api.get('/admin/audit-logs', { params }).then(r => r.data),
 };
 
+// SMS Notifications
+export const smsApi = {
+  getLogs: () => api.get('/sms/logs').then(r => r.data),
+  send: (data) => api.post('/sms/send', data).then(r => r.data),
+  test: (params) => api.post('/sms/test', null, { params }).then(r => r.data),
+  getConfig: () => api.get('/sms/config').then(r => r.data),
+};
+
+

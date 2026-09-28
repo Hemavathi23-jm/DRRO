@@ -25,6 +25,8 @@ public class ReliefRequestService {
     private final ResourceTypeRepository resourceTypeRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final com.drro.service.notification.SmsNotificationService smsNotificationService;
+
 
     /** All requests in newest-first order. */
     public List<ReliefRequestResponse> getAll() {
@@ -94,15 +96,36 @@ public class ReliefRequestService {
         location.setOpenRequestCount(location.getOpenRequestCount() + 1);
         locationRepository.save(location);
 
-        if (saved.getUrgency() == ReliefRequest.UrgencyLevel.CRITICAL) {
+        if (saved.getUrgency() == ReliefRequest.UrgencyLevel.CRITICAL || saved.getUrgency() == ReliefRequest.UrgencyLevel.HIGH) {
             notificationService.notifyOfficers(
                     com.drro.entity.Notification.NotificationType.CRITICAL_REQUEST,
                     com.drro.entity.Notification.NotificationSeverity.CRITICAL,
-                    "CRITICAL RELIEF REQUEST",
-                    "Critical request from " + location.getName() + " — review immediately.",
+                    "URGENT RELIEF REQUEST",
+                    "Urgent request from " + location.getName() + " — review immediately.",
                     "ReliefRequest", saved.getRequestId(),
                     "/requests/" + saved.getRequestId());
+
+            try {
+                String itemsSummary = req.getItems().size() + " item types";
+                smsNotificationService.sendUrgentRequestAlert(
+                        saved.getRequestId(),
+                        disaster.getTitle(),
+                        location.getName(),
+                        itemsSummary,
+                        "+15550199"
+                );
+                smsNotificationService.sendAdminAlert(
+                        "ADMIN_URGENT_REQUEST",
+                        "Urgent Request Logged",
+                        String.format("Request #%d created for %s at %s (%s).",
+                                saved.getRequestId(), disaster.getTitle(), location.getName(), saved.getUrgency())
+                );
+            } catch (Exception e) {
+                // non-blocking
+            }
+
         }
+
 
         return toResponse(requestRepository.findById(saved.getRequestId()).orElse(saved));
     }

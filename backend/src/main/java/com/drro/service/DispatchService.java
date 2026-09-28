@@ -38,6 +38,8 @@ public class DispatchService {
     private final ReliefRequestRepository reliefRequestRepository;
     private final UserRepository          userRepository;
     private final com.drro.service.notification.SseNotificationService sseNotificationService;
+    private final com.drro.service.notification.SmsNotificationService smsNotificationService;
+
 
     // -----------------------------------------------------------------------
     // CREATE
@@ -88,10 +90,42 @@ public class DispatchService {
         allocation.setStatus(Allocation.AllocationStatus.DISPATCHED);
         allocationRepository.save(allocation);
 
+        // Send SMS alerts to Team Lead and Admin
+        try {
+            String destinationName = "Disaster Impact Area";
+            if (allocation.getRequestItem() != null && allocation.getRequestItem().getRequest() != null
+                    && allocation.getRequestItem().getRequest().getLocation() != null) {
+                destinationName = allocation.getRequestItem().getRequest().getLocation().getName();
+            }
+
+            if (team != null) {
+                String contact = (team.getContact() != null && !team.getContact().isBlank()) ? team.getContact() : "+15550199";
+                smsNotificationService.sendDispatchAlert(
+                        team.getName(),
+                        7,
+                        destinationName,
+                        req.getVehicleInfo(),
+                        2.5,
+                        contact,
+                        team.getName() + " Lead"
+                );
+            }
+
+            smsNotificationService.sendAdminAlert(
+                    "ADMIN_DISPATCH_UPDATE",
+                    "Fleet & Batch Dispatched",
+                    String.format("Dispatch #%d created for %s. Vehicle: %s",
+                            saved.getDispatchId(), destinationName, req.getVehicleInfo() != null ? req.getVehicleInfo() : "Transport Fleet")
+            );
+        } catch (Exception e) {
+            log.warn("[DispatchService] Non-blocking SMS dispatch failed: {}", e.getMessage());
+        }
+
         log.info("[DispatchService] Dispatch {} created for allocation {}.",
                 saved.getDispatchId(), allocation.getAllocationId());
         return toResponse(saved);
     }
+
 
     // -----------------------------------------------------------------------
     // STATUS TRANSITIONS
@@ -170,10 +204,35 @@ public class DispatchService {
         // ---- Update overall relief request status ----
         updateRequestStatus(item.getRequest());
 
+        // Send Delivery Confirmation SMS to requester and Admin
+        try {
+            String locationName = item.getRequest().getLocation() != null ? item.getRequest().getLocation().getName() : "Impact Zone";
+            String unitStr = item.getResourceType() != null ? item.getResourceType().getUnit() : "units";
+            String itemSummary = deliveredQty + " " + (item.getResourceType() != null ? item.getResourceType().getName() : "Resources") + " (" + unitStr + ")";
+
+            smsNotificationService.sendDeliveryAlert(
+                    item.getRequest().getRequestId(),
+                    locationName,
+                    itemSummary,
+                    "+15550199",
+                    "Disaster Coordinator"
+            );
+
+            smsNotificationService.sendAdminAlert(
+                    "ADMIN_DELIVERY_CONFIRMED",
+                    "Delivery Confirmed",
+                    String.format("Request #%d at %s marked DELIVERED (%s).",
+                            item.getRequest().getRequestId(), locationName, itemSummary)
+            );
+        } catch (Exception e) {
+            log.warn("[DispatchService] Non-blocking delivery SMS failed: {}", e.getMessage());
+        }
+
         log.info("[DispatchService] Dispatch {} DELIVERED — {} units.", dispatchId, deliveredQty);
         sseNotificationService.broadcast("DELIVERY_COMPLETED", java.util.Map.of("dispatchId", dispatchId, "status", "DELIVERED", "deliveredQty", deliveredQty));
         return toResponse(dispatch);
     }
+
 
     /**
      * Mark dispatch as FAILED and release the reserved inventory.

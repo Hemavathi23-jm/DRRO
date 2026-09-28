@@ -77,12 +77,14 @@ public class MapDataService {
                 }).collect(Collectors.toList()));
 
         data.put("routes", dispatchRepository.findAll().stream()
-                .filter(d -> d.getAllocation() != null 
+                .filter(d -> (d.getStatus() == Dispatch.DispatchStatus.IN_TRANSIT || d.getStatus() == Dispatch.DispatchStatus.CREATED)
+                        && d.getAllocation() != null 
                         && d.getAllocation().getCenter() != null
                         && d.getAllocation().getRequestItem() != null
                         && d.getAllocation().getRequestItem().getRequest() != null
                         && d.getAllocation().getRequestItem().getRequest().getLocation() != null)
                 .map(d -> {
+
                     ResourceCenter rc = d.getAllocation().getCenter();
                     Location loc = d.getAllocation().getRequestItem().getRequest().getLocation();
                     RequestItem ri = d.getAllocation().getRequestItem();

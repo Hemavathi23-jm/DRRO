@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, useRef } from 'react';
 import { notificationApi } from '../services/api';
 import { useAuth } from './AuthContext';
+import Icon from '../components/common/Icon';
 
 const NotificationContext = createContext(null);
 
@@ -145,8 +146,8 @@ export function NotificationProvider({ children }) {
             gap: '12px'
           }}
         >
-          <div style={{ fontSize: '1.4rem' }}>
-            {liveToast.severity === 'CRITICAL' ? '🚨' : '🔔'}
+          <div style={{ display: 'flex', alignItems: 'center', paddingTop: 2 }}>
+            <Icon name={liveToast.severity === 'CRITICAL' ? 'alert' : 'bell'} size={20} />
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: 2 }}>{liveToast.title}</div>
@@ -155,18 +156,20 @@ export function NotificationProvider({ children }) {
           <button
             type="button"
             onClick={() => setLiveToast(null)}
+            aria-label="Dismiss"
             style={{
               background: 'none',
               border: 'none',
               color: 'inherit',
               cursor: 'pointer',
-              fontSize: '1rem',
               opacity: 0.7,
               padding: 0,
-              marginLeft: '6px'
+              marginLeft: '6px',
+              display: 'grid',
+              placeItems: 'center',
             }}
           >
-            ✕
+            <Icon name="x" size={16} />
           </button>
         </div>
       )}

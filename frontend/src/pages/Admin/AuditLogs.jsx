@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import PageWrapper from '../../components/layout/PageWrapper';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import Icon from '../../components/common/Icon';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import { auditLogApi } from '../../services/api';
 import { formatDateTime } from '../../utils/formatters';
@@ -51,7 +52,7 @@ export default function AuditLogs() {
           <p className="text-muted">Immutable chronological logs of operational and officer decisions</p>
         </div>
         <button className="btn btn-secondary btn-sm" type="button" onClick={refetch}>
-          🔄 Refresh Logs
+          <Icon name="refresh" size={14} /> Refresh Logs
         </button>
       </div>
 

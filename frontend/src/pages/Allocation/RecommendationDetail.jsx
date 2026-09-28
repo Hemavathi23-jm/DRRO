@@ -7,6 +7,7 @@ import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import { allocationApi, dispatchApi, teamApi } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import Icon from '../../components/common/Icon';
 
 function buildFactors(a) {
   return {
@@ -125,7 +126,7 @@ export default function RecommendationDetail() {
             This allocation is approved and reserved in inventory. Assign a response team and vehicle to create a dispatch.
           </p>
           <button className="btn btn-primary" onClick={() => setShowDispatchModal(true)}>
-            🚚 Create Dispatch
+            <Icon name="truck" size={14} /> Create Dispatch
           </button>
         </div>
       )}

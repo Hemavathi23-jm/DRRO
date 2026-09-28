@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 const Chevron = () => (
@@ -62,6 +62,11 @@ const ICONS = {
       <circle cx="17" cy="17.5" r="1.5" />
     </svg>
   ),
+  reports: (
+    <svg className="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <path d="M4 19V5M4 19h16M8 15v-4M12 15V8M16 15v-6" strokeLinecap="round" />
+    </svg>
+  ),
   weights: (
     <svg className="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
       <path d="M4 20V10M10 20V4M16 20v-7M20 20H2" strokeLinecap="round" />
@@ -82,69 +87,117 @@ const ICONS = {
   ),
 };
 
-const NAV = [
+const OPERATIONS = [
   { to: '/dashboard', label: 'Dashboard', icon: 'dashboard', end: true },
   { to: '/disasters', label: 'Disasters', icon: 'disasters' },
   { to: '/locations', label: 'Locations', icon: 'locations' },
-  { to: '/resources/inventory', label: 'Resources', icon: 'resources' },
   { to: '/requests', label: 'Requests', icon: 'requests' },
   { to: '/allocation', label: 'Allocation', icon: 'allocation' },
   { to: '/teams', label: 'Teams', icon: 'teams' },
   { to: '/dispatch', label: 'Dispatch', icon: 'dispatch' },
-  { to: '/admin/weights', label: 'Weights', icon: 'weights' },
-  { to: '/admin/audit-logs', label: 'Audit Logs', icon: 'audit' },
-  { to: '/admin/users', label: 'Users', icon: 'users' },
 ];
 
-export default function Sidebar({ open = false, onClose, onOpenSos }) {
-  const { user } = useAuth();
+const RESOURCES = [
+  { to: '/resources/inventory', label: 'Inventory', icon: 'resources' },
+  { to: '/resources/types', label: 'Resource Types', icon: 'resources' },
+  { to: '/resources/centers', label: 'Centers', icon: 'locations' },
+];
+
+const ADMIN = [
+  { to: '/reports', label: 'Reports', icon: 'reports', roles: ['ADMIN', 'OFFICER', 'COORDINATOR', 'VIEWER'] },
+  { to: '/admin/weights', label: 'Weights', icon: 'weights', roles: ['ADMIN', 'OFFICER'] },
+  { to: '/admin/audit-logs', label: 'Audit Logs', icon: 'audit', roles: ['ADMIN'] },
+  { to: '/admin/users', label: 'Users', icon: 'users', roles: ['ADMIN'] },
+];
+
+function NavItem({ item, onClose }) {
+  return (
+    <NavLink
+      to={item.to}
+      end={item.end}
+      className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+      onClick={onClose}
+    >
+      {ICONS[item.icon]}
+      <span className="nav-link-label">{item.label}</span>
+      <Chevron />
+    </NavLink>
+  );
+}
+
+export default function Sidebar({ open = false, onClose }) {
+  const { user, hasRole } = useAuth();
+  const navigate = useNavigate();
+
+  const adminItems = ADMIN.filter((n) => !n.roles || hasRole(...n.roles));
 
   return (
     <aside className={`sidebar${open ? ' open' : ''}`}>
       <div className="sidebar-brand">
         <div className="sidebar-logo" aria-hidden>
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 21s-7-4.35-7-10a5 5 0 019.9-1.05A5 5 0 0119 11c0 5.65-7 10-7 10z" opacity="0.95" />
-            <path d="M9.5 11.2V9.8h1.3V8.5h1.4v1.3h1.3v1.4h-1.3v1.3h-1.4v-1.3H9.5z" fill="#e85a3c" />
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M12 3l8 14H4L12 3z" strokeLinejoin="round" />
+            <path d="M12 10v4M12 17h.01" strokeLinecap="round" />
           </svg>
         </div>
         <div>
-          <div className="sidebar-brand-title">Disaster</div>
-          <div className="sidebar-brand-sub">Resource Optimizer</div>
+          <div className="sidebar-brand-title">DRRO</div>
+          <div className="sidebar-brand-sub">Command Center</div>
         </div>
       </div>
 
+      <div className="sidebar-cta-wrap">
+        <button
+          type="button"
+          className="sidebar-cta"
+          onClick={() => {
+            onClose?.();
+            navigate('/allocation');
+          }}
+        >
+          Run allocation
+        </button>
+      </div>
+
       <nav className="sidebar-nav" aria-label="Main">
-        {NAV.map(n => (
-          <NavLink
-            key={n.to}
-            to={n.to}
-            end={n.end}
-            className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
-            onClick={onClose}
-          >
-            {ICONS[n.icon]}
-            {n.label}
-            <Chevron />
-          </NavLink>
-        ))}
+        <div className="nav-group">
+          <div className="nav-group-label">Operations</div>
+          {OPERATIONS.map((n) => (
+            <NavItem key={n.to} item={n} onClose={onClose} />
+          ))}
+        </div>
+
+        <div className="nav-group">
+          <div className="nav-group-label">Resources</div>
+          {RESOURCES.map((n) => (
+            <NavItem key={n.to} item={n} onClose={onClose} />
+          ))}
+        </div>
+
+        {adminItems.length > 0 && (
+          <div className="nav-group">
+            <div className="nav-group-label">Admin</div>
+            {adminItems.map((n) => (
+              <NavItem key={n.to} item={n} onClose={onClose} />
+            ))}
+          </div>
+        )}
       </nav>
 
-      <div className="sidebar-sos">
-        <button type="button" className="sos-orb" onClick={onOpenSos} aria-label="Open SOS">
-          <div>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 3v2M12 19v2M5 12H3M21 12h-2M6.3 6.3l1.4 1.4M16.3 16.3l1.4 1.4M6.3 17.7l1.4-1.4M16.3 7.7l1.4-1.4" strokeLinecap="round" />
-              <circle cx="12" cy="12" r="3.5" />
-            </svg>
-            <div className="sos-orb-label">SOS</div>
-          </div>
+      <div className="sidebar-foot">
+        <div className="sidebar-foot-title">Critical queue</div>
+        <p className="sidebar-foot-hint">Jump to high-urgency relief requests.</p>
+        <button
+          type="button"
+          className="sidebar-foot-btn"
+          onClick={() => {
+            onClose?.();
+            navigate('/requests?urgency=CRITICAL');
+          }}
+        >
+          View critical →
         </button>
-        <p className="sos-hint">Long press to start SOS signal</p>
-        <button type="button" className="sos-enable" onClick={onOpenSos}>Enable</button>
-        <p className="sos-hint" style={{ marginTop: 12, marginBottom: 0 }}>
-          Signed in as {user?.name}
-        </p>
+        <p className="sidebar-user-chip">Signed in as {user?.name}</p>
       </div>
     </aside>
   );

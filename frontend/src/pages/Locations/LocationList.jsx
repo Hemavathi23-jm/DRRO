@@ -1,21 +1,32 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageWrapper from '../../components/layout/PageWrapper';
+import PageHeader from '../../components/common/PageHeader';
 import StatusBadge from '../../components/common/StatusBadge';
 import DataTable from '../../components/common/DataTable';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import EmptyState from '../../components/common/EmptyState';
+import FilterBar from '../../components/common/FilterBar';
 import OperationalMap from '../../components/map/OperationalMap';
 import { useAsyncData } from '../../hooks/useAsyncData';
+import { useUrlFilters } from '../../hooks/useUrlFilters';
 import { dashboardApi, disasterApi, locationApi } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+
+const FILTER_DEFAULTS = { disasterId: 'ALL' };
 
 async function fetchAllLocations() {
   const disasters = await disasterApi.list();
   const batches = await Promise.all(
     disasters.map(async (d) => {
       const locs = await locationApi.list(d.disasterId);
-      return locs.map(l => ({ ...l, id: l.locationId, disasterTitle: l.disasterTitle || d.title }));
-    })
+      return locs.map((l) => ({
+        ...l,
+        id: l.locationId,
+        disasterTitle: l.disasterTitle || d.title,
+        disasterId: l.disasterId || d.disasterId,
+      }));
+    }),
   );
   return batches.flat();
 }
@@ -23,12 +34,14 @@ async function fetchAllLocations() {
 export default function LocationList() {
   const { hasRole } = useAuth();
   const navigate = useNavigate();
+  const { values, setValue, clearAll } = useUrlFilters(FILTER_DEFAULTS);
   const [mapTarget, setMapTarget] = useState(null);
   const [safePlaces, setSafePlaces] = useState(null);
   const [safePlaceLoc, setSafePlaceLoc] = useState(null);
   const [safeLoading, setSafeLoading] = useState(false);
   const [safeError, setSafeError] = useState('');
   const { data, loading, error, refetch } = useAsyncData(fetchAllLocations, []);
+  const { data: disasters } = useAsyncData(() => disasterApi.list(), []);
 
   const loadSafePlaces = async (loc) => {
     setSafeLoading(true);
@@ -46,23 +59,73 @@ export default function LocationList() {
     }
   };
 
+  const locations = useMemo(() => data || [], [data]);
+  const filtered = useMemo(() => {
+    let rows = locations;
+    if (values.disasterId && values.disasterId !== 'ALL') {
+      rows = rows.filter((l) => String(l.disasterId) === String(values.disasterId));
+    }
+    return rows;
+  }, [locations, values]);
+
+  const handleFulfillDemand = (loc) => {
+    navigate(`/requests/create?disasterId=${loc.disasterId || ''}&locationId=${loc.locationId || ''}`);
+  };
+
   const columns = [
-    { label: 'Location', accessor: 'name', render: r => <span style={{ fontWeight: 600 }}>{r.name}</span> },
+    { label: 'Location', accessor: 'name', render: (r) => <span style={{ fontWeight: 600 }}>{r.name}</span> },
     { label: 'Disaster', accessor: 'disasterTitle' },
-    { label: 'Population', accessor: 'populationAffected', render: r => (r.populationAffected ?? 0).toLocaleString() },
-    { label: 'Severity', accessor: 'severityScore', render: r => <span style={{ color: (r.severityScore ?? 0) >= 80 ? 'var(--danger)' : 'var(--warning)', fontWeight: 600 }}>{r.severityScore ?? '—'}</span> },
-    { label: 'Accessibility', accessor: 'accessibility', render: r => r.accessibility ? <StatusBadge status={r.accessibility} /> : '—' },
-    { label: 'Fulfillment', accessor: 'fulfillmentStatus', render: r => r.fulfillmentStatus ? <StatusBadge status={r.fulfillmentStatus} /> : '—' },
-    { label: 'Open Requests', accessor: 'openRequestCount', render: r => <span style={{ color: (r.openRequestCount ?? 0) > 0 ? 'var(--warning)' : 'var(--success)' }}>{r.openRequestCount ?? 0}</span> },
     {
-      label: 'Actions', accessor: 'locationId', render: r => (
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button className="btn btn-secondary btn-sm" type="button"
-            onClick={() => setMapTarget({ lat: Number(r.latitude), lng: Number(r.longitude), zoom: 13, name: r.name })}>
+      label: 'Population',
+      accessor: 'populationAffected',
+      render: (r) => r.populationAffected?.toLocaleString?.() || r.populationAffected || '—',
+    },
+    {
+      label: 'Demand Status',
+      accessor: 'fulfillmentStatus',
+      render: (r) => (
+        <button
+          type="button"
+          onClick={() => handleFulfillDemand(r)}
+          title="Click to fulfill relief demand for this location"
+          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
+        >
+          <StatusBadge status={r.fulfillmentStatus || 'UNMET'} />
+          <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--primary)', marginTop: 2, fontWeight: 600 }}>
+            ⚡ Click to Fulfill
+          </span>
+        </button>
+      ),
+    },
+    {
+      label: 'Actions',
+      accessor: 'locationId',
+      render: (r) => (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button
+            className="btn btn-primary btn-sm"
+            type="button"
+            style={{ fontSize: '0.78rem', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+            onClick={() => handleFulfillDemand(r)}
+            title="Book resources & fulfill demand for this location"
+          >
+            <span>⚡ Fulfill Demand</span>
+          </button>
+          <button
+            className="btn btn-secondary btn-sm"
+            type="button"
+            style={{ fontSize: '0.78rem', padding: '4px 8px' }}
+            onClick={() => setMapTarget({ ...r, lat: Number(r.latitude), lng: Number(r.longitude), zoom: 12 })}
+          >
             Map
           </button>
-          <button className="btn btn-secondary btn-sm" type="button" onClick={() => loadSafePlaces(r)}>
-            Safe Places
+          <button
+            className="btn btn-secondary btn-sm"
+            type="button"
+            style={{ fontSize: '0.78rem', padding: '4px 8px' }}
+            onClick={() => loadSafePlaces(r)}
+          >
+            Safe places
           </button>
         </div>
       ),
@@ -70,50 +133,68 @@ export default function LocationList() {
   ];
 
   if (loading) return <PageWrapper><LoadingSpinner message="Loading locations…" /></PageWrapper>;
-  if (error) return (
-    <PageWrapper>
-      <div className="empty-state">
-        <p>Unable to load locations. {error}</p>
-        <button className="btn btn-primary mt-2" onClick={refetch}>Try again</button>
-      </div>
-    </PageWrapper>
-  );
+  if (error) {
+    return (
+      <PageWrapper>
+        <EmptyState
+          title="Unable to load locations"
+          description={String(error)}
+          action={<button className="btn btn-primary" type="button" onClick={refetch}>Try again</button>}
+        />
+      </PageWrapper>
+    );
+  }
 
-  const locations = data || [];
+  const disasterOptions = [
+    { value: 'ALL', label: 'All disasters' },
+    ...(disasters || []).map((d) => ({ value: String(d.disasterId), label: d.title })),
+  ];
+
   const safeMarkers = (safePlaces || [])
-    .filter(p => p.latitude && p.longitude)
+    .filter((p) => p.latitude && p.longitude)
     .map((p, i) => ({
-      id: p.osmId || p.centerId || i,
-      category: 'resource_center',
+      id: p.osmId || p.centerId || `safe-${i}`,
+      category: 'safe_place',
       name: p.name,
       latitude: p.latitude,
       longitude: p.longitude,
-      status: p.type,
     }));
 
   return (
     <PageWrapper>
-      <div className="flex-between page-header">
-        <div>
-          <h2 className="page-title">Affected Locations</h2>
-          <p className="page-sub">{locations.length} registered locations</p>
-        </div>
-        {hasRole('OFFICER', 'ADMIN') && (
-          <button className="btn btn-primary" onClick={() => navigate('/locations/create')}>Add Location</button>
-        )}
-      </div>
+      <PageHeader
+        title="Affected locations"
+        subtitle={`${locations.length} registered · ${filtered.length} shown`}
+        actions={
+          hasRole('OFFICER', 'ADMIN') && (
+            <button className="btn btn-primary" type="button" onClick={() => navigate('/locations/create')}>
+              Add location
+            </button>
+          )
+        }
+      />
+
+      <FilterBar
+        values={values}
+        onChange={setValue}
+        onClear={clearAll}
+        resultCount={filtered.length}
+        filters={[
+          { key: 'disasterId', label: 'Disaster', type: 'select', options: disasterOptions },
+        ]}
+      />
 
       {mapTarget && (
         <div className="card" style={{ marginBottom: 16 }}>
           <div className="flex-between" style={{ marginBottom: 10 }}>
             <p className="card-title" style={{ margin: 0 }}>{mapTarget.name}</p>
-            <button className="btn btn-secondary btn-sm" type="button" onClick={() => setMapTarget(null)}>Close Map</button>
+            <button className="btn btn-secondary btn-sm" type="button" onClick={() => setMapTarget(null)}>Close map</button>
           </div>
           <OperationalMap
             height={320}
             zoom={mapTarget.zoom}
             flyTo={mapTarget}
-            markers={locations.filter(l => l.latitude && l.longitude).map(l => ({
+            markers={locations.filter((l) => l.latitude && l.longitude).map((l) => ({
               id: l.locationId,
               category: 'location',
               name: l.name,
@@ -131,13 +212,14 @@ export default function LocationList() {
           <div className="flex-between" style={{ marginBottom: 10 }}>
             <div>
               <p className="card-title" style={{ margin: 0 }}>
-                Nearby Safe Places{safePlaceLoc ? ` — ${safePlaceLoc.name}` : ''}
-              </p>
-              <p className="text-muted" style={{ fontSize: '0.786rem', marginTop: 4 }}>
-                Sources: internal shelters and OpenStreetMap (hospitals, shelters, clinics)
+                Nearby safe places{safePlaceLoc ? ` — ${safePlaceLoc.name}` : ''}
               </p>
             </div>
-            <button className="btn btn-secondary btn-sm" type="button" onClick={() => { setSafePlaces(null); setSafePlaceLoc(null); setSafeError(''); }}>
+            <button
+              className="btn btn-secondary btn-sm"
+              type="button"
+              onClick={() => { setSafePlaces(null); setSafePlaceLoc(null); setSafeError(''); }}
+            >
               Close
             </button>
           </div>
@@ -174,7 +256,6 @@ export default function LocationList() {
                     <th>Type</th>
                     <th>Source</th>
                     <th>Distance</th>
-                    <th>Address</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -184,21 +265,17 @@ export default function LocationList() {
                       <td>{p.type}</td>
                       <td><span className="role-badge">{p.source || '—'}</span></td>
                       <td>{p.distanceKm != null ? `${p.distanceKm} km` : '—'}</td>
-                      <td className="text-muted">{p.address || '—'}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              <p className="text-muted" style={{ marginTop: 10, fontSize: '0.786rem' }}>
-                {safePlaces[0]?.disclaimer || 'Verify with authorities before use.'}
-              </p>
             </>
           )}
         </div>
       )}
 
       <div className="card">
-        <DataTable columns={columns} data={locations} emptyMessage="No locations registered." />
+        <DataTable columns={columns} data={filtered} emptyMessage="No locations match these filters." />
       </div>
     </PageWrapper>
   );

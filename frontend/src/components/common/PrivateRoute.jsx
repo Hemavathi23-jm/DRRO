@@ -9,8 +9,14 @@ export default function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
   const location = useLocation();
 
-  // Still checking localStorage — render nothing to avoid flicker
-  if (loading) return null;
+  if (loading) {
+    return (
+      <div className="empty-state" style={{ margin: 48, boxShadow: 'none' }} aria-busy="true">
+        <div className="spinner" />
+        <p>Restoring session…</p>
+      </div>
+    );
+  }
 
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;

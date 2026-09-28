@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import Icon from '../../components/common/Icon';
 import './Login.css';
 
 const DEMO_ACCOUNTS = [
-  { email: 'admin@drro.com',   password: 'Admin@123', role: 'Admin',            color: '#e85a3c' },
+  { email: 'admin@drro.com',   password: 'Admin@123', role: 'Admin',            color: '#1d4ed8' },
   { email: 'officer@drro.com', password: 'Admin@123', role: 'Officer',          color: '#2563eb' },
-  { email: 'manager@drro.com', password: 'Admin@123', role: 'Resource Manager', color: '#16a34a' },
+  { email: 'manager@drro.com', password: 'Admin@123', role: 'Resource Manager', color: '#059669' },
   { email: 'field@drro.com',   password: 'Admin@123', role: 'Field Operator',   color: '#d97706' },
 ];
 
@@ -48,7 +49,9 @@ export default function Login() {
       <aside className="login-hero">
         <div className="login-hero-inner">
           <div className="login-logo-wrap">
-            <span className="login-logo-icon">🛡️</span>
+            <span className="login-logo-icon" aria-hidden>
+              <Icon name="shield" size={22} />
+            </span>
             <span className="login-logo-text">DRRO</span>
           </div>
           <h1 className="login-hero-title">
@@ -76,9 +79,15 @@ export default function Login() {
           </div>
 
           <div className="login-hero-badges">
-            <span className="login-badge">🌐 Real-time Data</span>
-            <span className="login-badge">🔒 JWT Secured</span>
-            <span className="login-badge">📊 Smart Allocation</span>
+            <span className="login-badge">
+              <Icon name="globe" size={12} /> Real-time Data
+            </span>
+            <span className="login-badge">
+              <Icon name="lock" size={12} /> JWT Secured
+            </span>
+            <span className="login-badge">
+              <Icon name="chart" size={12} /> Smart Allocation
+            </span>
           </div>
         </div>
 
@@ -97,7 +106,9 @@ export default function Login() {
             <div className="lf-group">
               <label className="lf-label" htmlFor="login-email">Email address</label>
               <div className="lf-input-wrap">
-                <span className="lf-icon">✉️</span>
+                <span className="lf-icon" aria-hidden>
+                  <Icon name="mail" size={16} />
+                </span>
                 <input
                   id="login-email"
                   className="lf-input"
@@ -115,7 +126,9 @@ export default function Login() {
             <div className="lf-group">
               <label className="lf-label" htmlFor="login-password">Password</label>
               <div className="lf-input-wrap">
-                <span className="lf-icon">🔑</span>
+                <span className="lf-icon" aria-hidden>
+                  <Icon name="lock" size={16} />
+                </span>
                 <input
                   id="login-password"
                   className="lf-input"
@@ -132,14 +145,14 @@ export default function Login() {
                   onClick={() => setShowPass(v => !v)}
                   aria-label="Toggle password visibility"
                 >
-                  {showPass ? '🙈' : '👁️'}
+                  {showPass ? <Icon name="eyeOff" size={16} /> : <Icon name="eye" size={16} />}
                 </button>
               </div>
             </div>
 
             {error && (
               <div className="lf-error" role="alert">
-                <span>⚠️</span> {error}
+                <Icon name="warning" size={14} /> {error}
               </div>
             )}
 

@@ -1,60 +1,35 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageWrapper from '../../components/layout/PageWrapper';
+import PageHeader from '../../components/common/PageHeader';
+import { BentoGrid, BentoTile } from '../../components/common/Bento';
+import EmptyState from '../../components/common/EmptyState';
+import { DashboardSkeleton } from '../../components/common/Skeleton';
 import OperationalMap, { MAP_COLORS } from '../../components/map/OperationalMap';
 import ResourceUtilizationChart from '../../components/charts/ResourceUtilizationChart';
 import RequestFulfillmentChart from '../../components/charts/RequestFulfillmentChart';
 import AllocationTimeline from '../../components/charts/AllocationTimeline';
 import StatusBadge from '../../components/common/StatusBadge';
-import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import { dashboardApi, allocationApi, disasterApi } from '../../services/api';
 import { formatDateTime } from '../../utils/formatters';
 import { useAuth } from '../../context/AuthContext';
-
-const QUICK_ACTIONS = [
-  {
-    label: 'Report Disaster',
-    sub: 'Register new incident',
-    path: '/disasters/create',
-    icon: '🚨',
-    bg: 'rgba(239, 68, 68, 0.12)',
-  },
-  {
-    label: 'New Relief Request',
-    sub: 'Submit demand for supplies',
-    path: '/requests/create',
-    icon: '🆘',
-    bg: 'rgba(249, 115, 22, 0.12)',
-  },
-  {
-    label: 'Dispatch Teams',
-    sub: 'Deploy response units',
-    path: '/teams',
-    icon: '🚑',
-    bg: 'rgba(139, 92, 246, 0.12)',
-  },
-  {
-    label: 'Add Inventory',
-    sub: 'Stock distribution centers',
-    path: '/resources/inventory/add',
-    icon: '📦',
-    bg: 'rgba(16, 185, 129, 0.12)',
-  },
-];
+import { useToast } from '../../context/ToastContext';
+import Icon from '../../components/common/Icon';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { hasRole } = useAuth();
+  const toast = useToast();
+  const [showInsights, setShowInsights] = useState(false);
+
   const { data, loading, error, refetch } = useAsyncData(() => dashboardApi.get(), []);
   const { data: mapData, refetch: refetchMap } = useAsyncData(() => dashboardApi.map(), []);
   const { data: disasters, refetch: refetchDisasters } = useAsyncData(() => disasterApi.list(), []);
   const { data: allocations, refetch: refetchAllocations } = useAsyncData(() => allocationApi.list(), []);
 
-  // Listen to live SSE events from backend and auto-refresh dashboard data
   useEffect(() => {
-    const handleLiveEvent = (e) => {
-      console.log('[Dashboard] Auto-refreshing due to live event:', e.detail);
+    const handleLiveEvent = () => {
       refetch();
       refetchMap();
       refetchDisasters();
@@ -64,33 +39,48 @@ export default function Dashboard() {
     return () => window.removeEventListener('drro-live-event', handleLiveEvent);
   }, [refetch, refetchMap, refetchDisasters, refetchAllocations]);
 
-  if (loading) return <PageWrapper><LoadingSpinner message="Loading operational dashboard…" /></PageWrapper>;
-  if (error) return (
-    <PageWrapper>
-      <div className="empty-state">
-        <p>Unable to load dashboard. {error}</p>
-        <button className="btn btn-primary mt-2" type="button" onClick={refetch}>Try again</button>
-      </div>
-    </PageWrapper>
-  );
+  if (loading) {
+    return (
+      <PageWrapper>
+        <PageHeader title="Command Center" subtitle="Loading operational picture…" />
+        <DashboardSkeleton />
+      </PageWrapper>
+    );
+  }
+
+  if (error) {
+    return (
+      <PageWrapper>
+        <EmptyState
+          title="Unable to load dashboard"
+          description={String(error)}
+          action={
+            <button className="btn btn-primary" type="button" onClick={refetch}>
+              Try again
+            </button>
+          }
+        />
+      </PageWrapper>
+    );
+  }
 
   const m = data || {};
-  const kpis = [
-    { label: 'Active Disasters', value: m.activeDisasters ?? 0 },
-    { label: 'Open Requests', value: m.openRequests ?? 0 },
-    { label: 'Pending Approvals', value: m.pendingApprovals ?? 0 },
-    { label: 'Low Stock Alerts', value: m.lowStockAlerts ?? 0 },
-    { label: 'Active Dispatches', value: m.activeDispatches ?? 0 },
-    { label: 'Fulfillment Rate', value: `${m.fulfillmentRatePct ?? m.fulfillmentRate ?? 0}%` },
-  ];
+  const pending = m.pendingApprovals ?? 0;
+  const openReqs = m.openRequests ?? 0;
+  const lowStock = m.lowStockAlerts ?? 0;
+  const activeDisasters = m.activeDisasters ?? 0;
+  const fulfillment = m.fulfillmentRatePct ?? m.fulfillmentRate ?? 0;
+  const needsAction = pending > 0 || openReqs > 0 || lowStock > 0;
 
-  const allMarkers = mapData ? [
-    ...(mapData.disasters || []),
-    ...(mapData.locations || []),
-    ...(mapData.resourceCenters || []),
-    ...(mapData.teams || []),
-    ...(mapData.dispatches || []),
-  ] : [];
+  const allMarkers = mapData
+    ? [
+        ...(mapData.disasters || []),
+        ...(mapData.locations || []),
+        ...(mapData.resourceCenters || []),
+        ...(mapData.teams || []),
+        ...(mapData.dispatches || []),
+      ]
+    : [];
 
   const recentDisasters = (disasters || []).slice(0, 6);
   const recentAlloc = (allocations || []).slice(0, 5);
@@ -103,255 +93,268 @@ export default function Dashboard() {
       a.href = url;
       a.download = 'drro-operational-summary.pdf';
       a.click();
+      toast.success('Executive PDF downloaded.');
     } catch {
-      alert('PDF export requires officer/admin role and a running backend.');
+      toast.error('PDF export requires officer/admin role and a running backend.');
     }
   };
 
   return (
     <PageWrapper>
-      {/* Critical Attention Banner */}
-      {(m.pendingApprovals > 0 || m.openRequests > 0) && (
+      <PageHeader
+        title="Command Center"
+        subtitle="Prioritize critical demand, approvals, and field posture"
+        actions={
+          <>
+            {hasRole('OFFICER', 'ADMIN') && (
+              <button className="btn btn-secondary btn-sm" type="button" onClick={handleExportPdf}>
+                Export PDF
+              </button>
+            )}
+            <button className="btn btn-secondary btn-sm" type="button" onClick={() => navigate('/disasters/create')}>
+              Report disaster
+            </button>
+            <button className="btn btn-primary btn-sm" type="button" onClick={() => navigate('/allocation')}>
+              Run optimizer
+            </button>
+          </>
+        }
+      />
+
+      {needsAction && (
         <div className="critical-banner flex-between" style={{ flexWrap: 'wrap', gap: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: '1.25rem' }}>⚠️</span>
-            <div>
-              <strong>Action Required:</strong>{' '}
-              {m.pendingApprovals > 0 && `${m.pendingApprovals} allocation recommendation(s) awaiting approval. `}
-              {m.openRequests > 0 && `${m.openRequests} open relief request(s) ready for resource optimization.`}
-            </div>
+          <div>
+            <strong>Action required.</strong>{' '}
+            {pending > 0 && `${pending} approval(s) pending. `}
+            {openReqs > 0 && `${openReqs} open request(s). `}
+            {lowStock > 0 && `${lowStock} low-stock alert(s).`}
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            {m.openRequests > 0 && (
-              <button
-                className="btn btn-primary btn-sm"
-                type="button"
-                style={{ fontSize: '0.8rem', padding: '5px 12px' }}
-                onClick={() => navigate('/allocation')}
-              >
-                ⚡ Run Optimizer & Allocate
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {pending > 0 && (
+              <button className="btn btn-primary btn-sm" type="button" onClick={() => navigate('/allocation')}>
+                Review approvals
               </button>
             )}
-            {m.pendingApprovals > 0 && (
-              <button
-                className="btn btn-secondary btn-sm"
-                type="button"
-                style={{ fontSize: '0.8rem', padding: '5px 12px' }}
-                onClick={() => navigate('/allocation')}
-              >
-                ✓ Review Approvals
+            {openReqs > 0 && pending === 0 && (
+              <button className="btn btn-primary btn-sm" type="button" onClick={() => navigate('/allocation')}>
+                Optimize & allocate
               </button>
             )}
-            <button
-              className="btn btn-secondary btn-sm"
-              type="button"
-              style={{ fontSize: '0.8rem', padding: '5px 12px' }}
-              onClick={() => navigate('/requests')}
-            >
-              View Requests
+            <button className="btn btn-ghost btn-sm" type="button" onClick={() => navigate('/requests')}>
+              View requests
             </button>
           </div>
         </div>
       )}
 
-      {/* Quick Operational Actions Bar */}
-      <section className="dash-section">
-        <div className="dash-section-head flex-between">
-          <div>
-            <h3>Emergency Command Operations</h3>
-            <p>Direct shortcuts for operational personnel</p>
+      <BentoGrid>
+        <BentoTile title="Operational map" span="map">
+          <OperationalMap markers={allMarkers} routes={mapData?.routes || []} height={380} zoom={4} />
+          <div className="map-legend">
+            {Object.entries(MAP_COLORS).map(([k, c]) => (
+              <span key={k}>
+                <span className="legend-dot" style={{ background: c }} /> {k.replace('_', ' ')}
+              </span>
+            ))}
           </div>
-          {hasRole('OFFICER', 'ADMIN') && (
-            <button className="btn btn-secondary btn-sm" type="button" onClick={handleExportPdf}>
-              📄 Export Executive PDF
-            </button>
-          )}
-        </div>
-        <div className="quick-actions-grid">
-          {QUICK_ACTIONS.map((action) => (
+        </BentoTile>
+
+        <BentoTile title="Action queue" span="queue">
+          <div className="action-queue">
             <button
-              key={action.label}
               type="button"
-              className="quick-action-card"
-              onClick={() => navigate(action.path)}
+              className={`action-queue-item${pending > 0 ? ' action-queue-item--critical' : ''}`}
+              onClick={() => navigate('/allocation')}
             >
-              <div className="quick-action-icon" style={{ backgroundColor: action.bg }}>
-                {action.icon}
+              <div className="action-queue-meta">
+                <span className="action-queue-label">Pending approvals</span>
+                <span className="action-queue-sub">Recommendations awaiting decision</span>
               </div>
-              <div>
-                <div className="quick-action-title">{action.label}</div>
-                <div className="quick-action-sub">{action.sub}</div>
-              </div>
+              <span className={`action-queue-count${pending > 0 ? ' action-queue-count--danger' : ''}`}>{pending}</span>
             </button>
-          ))}
-        </div>
-      </section>
+            <button type="button" className="action-queue-item" onClick={() => navigate('/requests?urgency=CRITICAL')}>
+              <div className="action-queue-meta">
+                <span className="action-queue-label">Open relief requests</span>
+                <span className="action-queue-sub">Including critical urgency</span>
+              </div>
+              <span className="action-queue-count">{openReqs}</span>
+            </button>
+            <button type="button" className="action-queue-item" onClick={() => navigate('/resources/inventory')}>
+              <div className="action-queue-meta">
+                <span className="action-queue-label">Low stock alerts</span>
+                <span className="action-queue-sub">Centers below threshold</span>
+              </div>
+              <span className={`action-queue-count${lowStock > 0 ? ' action-queue-count--danger' : ''}`}>{lowStock}</span>
+            </button>
+            <button type="button" className="action-queue-item" onClick={() => navigate('/dispatch')}>
+              <div className="action-queue-meta">
+                <span className="action-queue-label">Active dispatches</span>
+                <span className="action-queue-sub">In transit or assigned</span>
+              </div>
+              <span className="action-queue-count">{m.activeDispatches ?? 0}</span>
+            </button>
 
-      {/* KPI Metrics Summary */}
-      <div className="grid-kpi" style={{ marginBottom: 24 }}>
-        {kpis.map((k) => (
-          <div className="kpi-card" key={k.label}>
-            <span className="kpi-label">{k.label}</span>
-            <span className="kpi-value">{k.value}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* Main Two-Column Layout */}
-      <div className="grid-2" style={{ alignItems: 'start', marginBottom: 24 }}>
-        {/* Left Column: Live Incident Feed & Recent Allocations */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* Live Incident Feed */}
-          <div className="card">
-            <div className="flex-between" style={{ marginBottom: 12 }}>
-              <p className="card-title" style={{ margin: 0 }}>🚨 Live Incident Feed</p>
-              <button
-                className="btn btn-secondary btn-sm"
-                style={{ fontSize: '0.76rem', padding: '3px 8px' }}
-                onClick={() => navigate('/disasters')}
-              >
-                View All ({disasters?.length || 0})
+            <div className="action-queue-actions">
+              <button className="btn btn-primary" type="button" onClick={() => navigate('/allocation')}>
+                Open allocation console
+              </button>
+              <button className="btn btn-secondary" type="button" onClick={() => navigate('/requests/create')}>
+                New relief request
               </button>
             </div>
-            {recentDisasters.length === 0 ? (
-              <p className="text-muted" style={{ padding: '12px 0' }}>No active disasters reported.</p>
-            ) : (
-              <div className="incident-feed">
-                {recentDisasters.map((d) => {
-                  const sev = d.severity ?? 50;
-                  const sevColor = sev >= 75 ? 'var(--danger)' : sev >= 55 ? 'var(--warning)' : 'var(--success)';
-                  const sevBg = sev >= 75 ? 'rgba(239, 68, 68, 0.15)' : sev >= 55 ? 'rgba(245, 158, 11, 0.15)' : 'rgba(34, 197, 94, 0.15)';
-                  return (
-                    <div
-                      key={d.disasterId || d.id}
-                      className="incident-feed-item"
-                      onClick={() => navigate(`/disasters/${d.disasterId || d.id}`)}
-                    >
-                      <div className="incident-feed-left">
-                        <span className="incident-sev-badge" style={{ color: sevColor, background: sevBg }}>
-                          {d.disasterType || d.type || 'EVENT'} {sev}
-                        </span>
-                        <span className="incident-title-text" title={d.title || d.name}>
-                          {d.title || d.name || 'Disaster Incident'}
-                        </span>
-                      </div>
-                      <span className="incident-time-text">
-                        {formatDateTime(d.reportedAt || d.createdAt || d.startTime)}
+          </div>
+        </BentoTile>
+
+        <BentoTile span="stat">
+          <p className="kpi-label">Active disasters</p>
+          <p className="kpi-value">{activeDisasters}</p>
+        </BentoTile>
+        <BentoTile span="stat">
+          <p className="kpi-label">Pending approvals</p>
+          <p className="kpi-value">{pending}</p>
+        </BentoTile>
+        <BentoTile span="stat">
+          <p className="kpi-label">Low stock</p>
+          <p className="kpi-value">{lowStock}</p>
+        </BentoTile>
+        <BentoTile span="stat">
+          <p className="kpi-label">Fulfillment</p>
+          <p className="kpi-value">{fulfillment}%</p>
+        </BentoTile>
+
+        <BentoTile
+          title="Live incidents"
+          span="incidents"
+          action={
+            <button className="btn btn-ghost btn-sm" type="button" onClick={() => navigate('/disasters')}>
+              View all
+            </button>
+          }
+        >
+          {recentDisasters.length === 0 ? (
+            <p className="text-muted">No active disasters reported.</p>
+          ) : (
+            <div className="incident-feed">
+              {recentDisasters.map((d) => {
+                const sev = d.severity ?? 50;
+                const sevColor = sev >= 75 ? 'var(--danger)' : sev >= 55 ? 'var(--warning)' : 'var(--success)';
+                const sevBg =
+                  sev >= 75
+                    ? 'rgba(239, 68, 68, 0.15)'
+                    : sev >= 55
+                      ? 'rgba(245, 158, 11, 0.15)'
+                      : 'rgba(34, 197, 94, 0.15)';
+                return (
+                  <button
+                    key={d.disasterId || d.id}
+                    type="button"
+                    className="incident-feed-item"
+                    onClick={() => navigate(`/disasters/${d.disasterId || d.id}`)}
+                  >
+                    <div className="incident-feed-left">
+                      <span className="incident-sev-badge" style={{ color: sevColor, background: sevBg }}>
+                        {d.disasterType || d.type || 'EVENT'} {sev}
+                      </span>
+                      <span className="incident-title-text" title={d.title || d.name}>
+                        {d.title || d.name || 'Disaster Incident'}
                       </span>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Recent Allocation Recommendations */}
-          <div className="card">
-            <div className="flex-between" style={{ marginBottom: 12 }}>
-              <p className="card-title" style={{ margin: 0 }}>⚡ Allocation Recommendations</p>
-              <button
-                className="btn btn-secondary btn-sm"
-                style={{ fontSize: '0.76rem', padding: '3px 8px' }}
-                onClick={() => navigate('/allocation')}
-              >
-                View All
-              </button>
+                    <span className="incident-time-text">
+                      {formatDateTime(d.reportedAt || d.createdAt || d.startTime)}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-            {recentAlloc.length === 0 ? (
-              <p className="text-muted" style={{ padding: '12px 0' }}>No recommendations generated yet.</p>
-            ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Resource</th>
-                      <th>Center</th>
-                      <th>Score</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentAlloc.map((r) => (
-                      <tr
-                        key={r.allocationId}
-                        style={{ cursor: 'pointer' }}
-                        onClick={() => navigate(`/allocation/${r.allocationId}`)}
-                      >
-                        <td style={{ fontWeight: 600 }}>{r.resourceTypeName}</td>
-                        <td style={{ fontSize: '0.82rem' }}>{r.centerName}</td>
-                        <td><span className="metric-highlight">{r.priorityScore?.toFixed?.(1) ?? r.priorityScore}</span></td>
-                        <td><StatusBadge status={r.status} /></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
+          )}
+        </BentoTile>
 
-        {/* Right Column: Operational Map & Unmet Demand */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* Operational Map */}
-          <div className="card">
-            <p className="card-title" style={{ marginBottom: 10 }}>🗺️ Operational Geographic Map</p>
-            <OperationalMap markers={allMarkers} routes={mapData?.routes || []} height={280} zoom={4} />
-            <div className="map-legend">
-              {Object.entries(MAP_COLORS).map(([k, c]) => (
-                <span key={k}><span className="legend-dot" style={{ background: c }} /> {k.replace('_', ' ')}</span>
+        <BentoTile
+          title="Recent allocations"
+          span="alloc"
+          action={
+            <button className="btn btn-ghost btn-sm" type="button" onClick={() => navigate('/allocation')}>
+              View all
+            </button>
+          }
+        >
+          {recentAlloc.length === 0 ? (
+            <p className="text-muted">No recommendations generated yet.</p>
+          ) : (
+            <div className="stack-list">
+              {recentAlloc.map((r) => (
+                <button
+                  key={r.allocationId}
+                  type="button"
+                  className="stack-card"
+                  onClick={() => navigate(`/allocation/${r.allocationId}`)}
+                >
+                  <div className="stack-card-main">
+                    <div className="stack-card-title">{r.resourceTypeName}</div>
+                    <div className="stack-card-sub">{r.centerName}</div>
+                  </div>
+                  <div className="stack-card-meta">
+                    <span className="metric-highlight">
+                      {r.priorityScore?.toFixed?.(1) ?? r.priorityScore}
+                    </span>
+                    <StatusBadge status={r.status} />
+                  </div>
+                </button>
               ))}
             </div>
-          </div>
+          )}
+        </BentoTile>
 
-          {/* Unmet Demand by Location & Resource */}
-          <div className="card">
-            <p className="card-title" style={{ marginBottom: 12 }}>📋 Critical Unmet Demand</p>
-            {(!m.unmetDemand || m.unmetDemand.length === 0) ? (
-              <p className="text-muted" style={{ padding: '8px 0' }}>All verified demands are currently fulfilled or in transit.</p>
-            ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Location</th>
-                      <th>Required Resource</th>
-                      <th>Unmet Qty</th>
-                      <th>Urgency</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {m.unmetDemand.slice(0, 6).map((u, i) => (
-                      <tr key={i}>
-                        <td style={{ fontWeight: 600, fontSize: '0.85rem' }}>{u.locationName}</td>
-                        <td style={{ fontSize: '0.85rem' }}>
-                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                            {u.resourceTypeName || u.resourceName || 'Supplies'}
-                          </span>
-                          {u.unit && <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}> ({u.unit})</span>}
-                        </td>
-                        <td style={{ color: 'var(--danger)', fontWeight: 700 }}>{u.unmetQty}</td>
-                        <td>
-                          <span className={`badge badge-${String(u.urgency || 'normal').toLowerCase()}`}>
-                            {u.urgency || 'NORMAL'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+        <BentoTile title="Critical unmet demand" span="unmet">
+          {!m.unmetDemand || m.unmetDemand.length === 0 ? (
+            <p className="text-muted">All verified demands are currently fulfilled or in transit.</p>
+          ) : (
+            <div className="stack-list">
+              {m.unmetDemand.slice(0, 8).map((u, i) => (
+                <div className="stack-card stack-card--static" key={i}>
+                  <div className="stack-card-main">
+                    <div className="stack-card-title" title={u.locationName}>
+                      {u.locationName}
+                    </div>
+                    <div className="stack-card-sub">
+                      {u.resourceTypeName || u.resourceName || 'Supplies'}
+                      {u.unit ? ` · ${u.unit}` : ''}
+                    </div>
+                  </div>
+                  <div className="stack-card-meta">
+                    <div className="stack-card-qty">
+                      <span className="stack-card-qty-label">Unmet</span>
+                      <span className="stack-card-qty-value">{u.unmetQty}</span>
+                    </div>
+                    <span className={`badge badge-${String(u.urgency || 'normal').toLowerCase()}`}>
+                      {u.urgency || 'NORMAL'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </BentoTile>
+      </BentoGrid>
+
+      <button
+        type="button"
+        className="btn btn-secondary insights-toggle"
+        onClick={() => setShowInsights((v) => !v)}
+        aria-expanded={showInsights}
+      >
+        <span>{showInsights ? 'Hide analytics' : 'Show analytics & insights'}</span>
+        <Icon name={showInsights ? 'x' : 'chart'} size={14} />
+      </button>
+
+      <div className="insights-panel" hidden={!showInsights}>
+        <div className="grid-2 section-block">
+          <ResourceUtilizationChart data={m.utilization} />
+          <RequestFulfillmentChart metrics={m} />
         </div>
-      </div>
-
-      {/* Analytics & Algorithm Charts */}
-      <div className="grid-2 section-block">
-        <ResourceUtilizationChart data={m.utilization} />
-        <RequestFulfillmentChart metrics={m} />
-      </div>
-      <div className="section-block">
-        <AllocationTimeline data={m.baselineComparison} />
+        <div className="section-block">
+          <AllocationTimeline data={m.baselineComparison} />
+        </div>
       </div>
     </PageWrapper>
   );

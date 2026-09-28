@@ -25,6 +25,8 @@ import DeliveryUpdate from './pages/Dispatch/DeliveryUpdate';
 import WeightConfig from './pages/Admin/WeightConfig';
 import AuditLogs from './pages/Admin/AuditLogs';
 import UserManagement from './pages/Admin/UserManagement';
+import Reports from './pages/Reports/Reports';
+import AlgorithmComparison from './pages/Reports/AlgorithmComparison';
 
 function Private({ children }) {
   return <PrivateRoute>{children}</PrivateRoute>;
@@ -63,6 +65,9 @@ export default function App() {
 
       <Route path="/dispatch"             element={<Private><DispatchList /></Private>} />
       <Route path="/dispatch/:id/deliver" element={<Private><DeliveryUpdate /></Private>} />
+
+      <Route path="/reports"              element={<Private><Reports /></Private>} />
+      <Route path="/reports/comparison"   element={<Private><AlgorithmComparison /></Private>} />
 
       <Route path="/admin/weights"        element={<Private><WeightConfig /></Private>} />
       <Route path="/admin/audit-logs"     element={<Private><AuditLogs /></Private>} />

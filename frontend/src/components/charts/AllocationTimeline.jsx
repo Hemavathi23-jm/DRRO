@@ -22,7 +22,7 @@ export default function AllocationTimeline({ data }) {
           <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} />
           <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 4, fontSize: 12 }} />
           <Legend iconType="square" iconSize={8} formatter={v => <span style={{ color: 'var(--text-secondary)', fontSize: '0.786rem' }}>{v}</span>} />
-          <Bar yAxisId="left" dataKey="count" name="Allocations" fill="#475467" radius={[3, 3, 0, 0]} />
+          <Bar yAxisId="left" dataKey="count" name="Allocations" fill="#1d4ed8" radius={[3, 3, 0, 0]} />
           <Bar yAxisId="right" dataKey="avgScore" name="Avg Score" fill="var(--accent)" radius={[3, 3, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
